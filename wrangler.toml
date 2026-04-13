@@ -1,0 +1,21 @@
+name = "booking-system"
+compatibility_date = "2025-02-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mde-booking-db"
+database_id = "566c9b36-fbaa-4313-8615-d0b278a21e16"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "mde-booking-bucket"
+
+# Production env vars — set these in Cloudflare Pages dashboard → Settings → Environment variables:
+#   R2_ENDPOINT          = https://<account_id>.r2.cloudflarestorage.com
+#   R2_ACCESS_KEY_ID     = <r2 token key id>
+#   R2_SECRET_ACCESS_KEY = <r2 token secret>
+#   R2_BUCKET_NAME       = mde-booking-bucket
+#   R2_PUBLIC_URL        = https://media-space.mdentertainment.com
+#   ADMIN_PASSWORD       = <your admin password>

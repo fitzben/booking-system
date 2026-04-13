@@ -1,0 +1,9 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminBookingDetail from '../../components/booking/AdminBookingDetail';
+const { id } = Astro.params;
+---
+
+<BaseLayout title="Admin – Detail Booking · MD Entertainment" noIndex={true}>
+  <AdminBookingDetail client:only="react" bookingId={Number(id)} />
+</BaseLayout>

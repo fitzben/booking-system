@@ -1,0 +1,178 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  keywords?: string;
+  ogImage?: string;
+  ogUrl?: string;
+  noIndex?: boolean;
+}
+
+const {
+  title = 'MD Entertainment – Studio & Function Room Booking',
+  description = 'Sewa studio dan function room profesional di Jakarta. Cocok untuk produksi film, iklan, konten digital, dan event korporat. Booking mudah, harga transparan.',
+  keywords = 'sewa studio Jakarta, function room Jakarta, booking studio produksi, studio film Jakarta, sewa ruangan event Jakarta, MD Entertainment studio',
+  ogImage = '/MDE_logo.png',
+  ogUrl = 'https://mdentertainment.com',
+  noIndex = false,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
+    <meta name="author" content="MD Entertainment" />
+    <meta name="robots" content={noIndex ? 'noindex, nofollow' : 'index, follow'} />
+    <link rel="canonical" href={ogUrl} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/MDE_logo.png" />
+    <link rel="apple-touch-icon" href="/MDE_logo.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={ogUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content="MD Entertainment – Studio & Function Room Booking" />
+    <meta property="og:locale" content="id_ID" />
+    <meta property="og:site_name" content="MD Entertainment" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Preconnect & Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="/antd-reset.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Critical CSS (existing) -->
+    <style is:global>
+      *, *::before, *::after { box-sizing: border-box; }
+      body  { margin: 0; background: #030b15; font-family: 'Inter', system-ui, sans-serif; }
+      html  { scroll-behavior: smooth; }
+
+      /* Critical skeleton — prevents form layout shift before JS hydrates */
+      .ant-form-item { display: flex; flex-direction: column; margin-bottom: 20px; }
+      .ant-input,
+      .ant-input-affix-wrapper,
+      .ant-picker,
+      .ant-select-selector {
+        height: 40px; padding: 4px 11px;
+        border: 1px solid #d9d9d9; border-radius: 6px; width: 100%;
+      }
+      .ant-input-affix-wrapper {
+        display: flex; align-items: center;
+      }
+      .ant-input-affix-wrapper .ant-input {
+        border: none; padding: 0; height: auto; box-shadow: none; outline: none;
+      }
+      .ant-row { display: flex; flex-wrap: wrap; margin-left: -8px; margin-right: -8px; }
+      .ant-col { padding-left: 8px; padding-right: 8px; min-height: 1px; }
+      
+      /* Better fallbacks for inputs and labels */
+      .ant-form-item-label { margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #374151; }
+      .ant-radio-group { display: flex; gap: 16px; margin-bottom: 8px; }
+      .ant-radio-wrapper { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+      .ant-steps { display: flex; justify-content: space-between; margin-bottom: 24px; }
+      .ant-steps-item { flex: 1; text-align: center; font-size: 13px; color: #9ca3af; }
+      .ant-steps-item-active { color: #22d3ee; font-weight: 600; }
+      
+      /* Global Fullscreen Loader */
+      @keyframes mde-spin {
+        to { transform: rotate(360deg); }
+      }
+      #global-loader {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999999;
+        background: #030b15;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        transition: opacity 0.5s ease, visibility 0.5s;
+        pointer-events: all;
+      }
+      .loader-spinner {
+        width: 48px; height: 48px;
+        border: 3px solid rgba(34, 211, 238, 0.1);
+        border-top-color: #22d3ee;
+        border-radius: 50%;
+        animation: mde-spin 0.8s linear infinite;
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.1);
+      }
+      .loader-text {
+        color: #22d3ee; 
+        margin-top: 24px; 
+        font-weight: 700; 
+        font-size: 13px; 
+        letter-spacing: 0.25em; 
+        text-transform: uppercase;
+        text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+      }
+
+      /* Body lock while loading */
+      body.is-loading { overflow: hidden !important; height: 100vh !important; }
+
+      /* Critical Skeleton fallbacks to prevent "hancur" look on 3G */
+      .hero-wrap { min-height: 80vh; background: #030b15; }
+      .rooms-section { background: #050d1a; min-height: 600px; }
+      .why-section { background: #070f1c; min-height: 400px; }
+      .contact-section { background: #050d1a; min-height: 400px; }
+      .booking-section { background: #f0f2f5; min-height: 600px; }
+      
+      .bfs-skeleton-wrap {
+        max-width: 900px; margin: 40px auto; 
+        padding: 0; 
+        background: transparent;
+        border: none;
+        min-height: 500px;
+      }
+    </style>
+    <script is:inline>
+      // This script runs in the head. We cannot access document.body yet.
+      // We will use a fallback to ensure the loader is removed even if scripts crash.
+      function hideLoader() {
+        const loader = document.getElementById('global-loader');
+        if (loader && loader.style.opacity !== '0') {
+          loader.style.opacity = '0';
+          loader.style.visibility = 'hidden';
+          if (document.body) document.body.classList.remove('is-loading');
+          setTimeout(() => {
+            if (loader.parentNode) loader.parentNode.removeChild(loader);
+          }, 500);
+        }
+      }
+
+      // Check for ready state
+      if (document.readyState === 'complete') {
+        setTimeout(hideLoader, 100);
+      } else {
+        window.addEventListener('load', hideLoader);
+        // Fail-safe: even on slow 3G, don't block the user for more than 4 seconds
+        setTimeout(hideLoader, 4000); 
+      }
+    </script>
+  </head>
+  <body class="is-loading">
+    <div id="global-loader">
+      <div class="loader-spinner"></div>
+      <div class="loader-text">MD Entertainment</div>
+    </div>
+    <slot />
+  </body>
+</html>

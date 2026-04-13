@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminBookingList from '../../components/booking/AdminBookingList';
+---
+
+<BaseLayout title="Admin – Daftar Booking · MD Entertainment" noIndex={true}>
+  <AdminBookingList client:only="react" />
+</BaseLayout>

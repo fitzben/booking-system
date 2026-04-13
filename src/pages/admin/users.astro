@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminUsersPage from '../../components/users/AdminUsersPage';
+---
+
+<BaseLayout title="Admin – Users · MD Entertainment" noIndex={true}>
+  <AdminUsersPage client:only="react" />
+</BaseLayout>

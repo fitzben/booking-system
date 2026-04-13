@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminSettingsPage from '../../components/settings/AdminSettingsPage';
+---
+
+<BaseLayout title="Admin – Pengaturan · MD Entertainment" noIndex={true}>
+  <AdminSettingsPage client:only="react" />
+</BaseLayout>

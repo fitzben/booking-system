@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import LandingNav from '../components/landing/LandingNav';
+import LandingHero from '../components/landing/LandingHero';
+import RoomsSection from '../components/landing/RoomsSection';
+import WhySection from '../components/landing/WhySection';
+import ContactSection from '../components/landing/ContactSection';
+---
+
+<BaseLayout
+  title="MD Entertainment – Studio & Function Room Booking Jakarta"
+  description="Sewa studio dan function room profesional di Jakarta. Cocok untuk produksi film, iklan, konten digital, dan event korporat. Booking mudah, harga transparan."
+  keywords="sewa studio Jakarta, function room Jakarta, booking studio produksi, studio film Jakarta, sewa ruangan event Jakarta, rental studio Jakarta, MD Entertainment studio"
+  ogUrl="https://mdentertainment.com"
+>
+  <!-- Sticky navigation -->
+  <LandingNav client:load />
+
+  <!-- Hero -->
+  <LandingHero client:load />
+
+  <!-- Rooms & packages (fetches /api/rooms) -->
+  <RoomsSection client:visible />
+
+  <!-- Why MD -->
+  <WhySection client:visible />
+
+  <!-- Contact & location -->
+  <ContactSection client:visible />
+
+  <!-- Footer (static, no JS needed) -->
+  <footer style="background:#030b15;border-top:1px solid rgba(255,255,255,0.06);padding:24px;text-align:center;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">
+      <img src="/MDE_logo.png" alt="MD Entertainment" style="height:24px;width:auto;" />
+    </div>
+    <p style="color:rgba(148,163,184,0.5);font-size:12px;margin:0;">
+      &copy; {new Date().getFullYear()} MD Entertainment &middot; mdentertainment.com
+    </p>
+  </footer>
+</BaseLayout>

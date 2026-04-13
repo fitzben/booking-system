@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:4321/api/rooms)",
+      "Bash(curl -s -X POST http://localhost:4322/api/bookings -H 'Content-Type: application/json' -d '{\"applicant_name\":\"Budi Santoso\",\"applicant_contact\":\"081234567890\",\"room_id\":1,\"date\":\"2026-04-10\",\"start_time\":\"09:00\",\"end_time\":\"11:00\",\"purpose\":\"Rapat bulanan\"}')",
+      "Bash(curl -s -X POST http://localhost:4322/api/bookings -H 'Content-Type: application/json' -d '{\"applicant_name\":\"Test\",\"applicant_contact\":\"08x\",\"room_id\":1,\"date\":\"2026-04-10\",\"start_time\":\"11:00\",\"end_time\":\"09:00\",\"purpose\":\"Test\"}')",
+      "Bash(curl -s -X POST http://localhost:4322/api/bookings -H 'Content-Type: application/json' -d '{\"applicant_name\":\"\",\"room_id\":1}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4322/)",
+      "Bash(curl -s http://localhost:4323/)",
+      "Bash(curl -s http://localhost:4323/admin)",
+      "Bash(pkill -f \"astro dev\")",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('exports',{}\\).get\\('./server',{}\\), indent=2\\)\\)\")",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"const p = require\\('/Users/itmanager/Documents/md_projects/booking-system/node_modules/react-dom/package.json'\\); const exp = p.exports; const keys = Object.keys\\(exp\\).filter\\(k=>k.includes\\('server'\\)\\); keys.forEach\\(k=>console.log\\(k,JSON.stringify\\(exp[k]\\)\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Read(//Users/itmanager/Documents/md_projects/booking-system/**)",
+      "Bash(curl -s http://localhost:4321/api/bookings/unread-count -H 'x-admin-username: superadmin_test' -H 'x-admin-password: test1234')",
+      "Bash(curl -si http://localhost:4321/api/bookings/unread-count -H 'x-admin-username: superadmin_test' -H 'x-admin-password: test1234')",
+      "Bash(curl -si http://localhost:4321/api/bookings/999 -H 'x-admin-username: superadmin_test' -H 'x-admin-password: test1234')",
+      "Bash(grep -n \"CREATE TABLE\" /Users/itmanager/Documents/md_projects/booking-system/migrations/*.sql)",
+      "Bash(grep -v \"wrangler\\\\|WARNING\\\\|update\\\\|Please\\\\|Run \\\\`\\\\|After\\\\|npx\\\\|--------\")"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminReportsPage from '../../components/admin/AdminReportsPage';
+---
+
+<BaseLayout title="Admin – Laporan · MD Entertainment" noIndex={true}>
+  <AdminReportsPage client:only="react" />
+</BaseLayout>
