@@ -1,4 +1,3 @@
-import { ADMIN_PASSWORD_KEY, ADMIN_USERNAME_KEY } from "./constants";
 import type { BookingStatus, AdminRole } from "./constants";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
@@ -61,7 +60,9 @@ export interface PaginatedBookings {
     rejected: number;
     contacted: number;
     not_contacted: number;
+    unread_count: number;
   };
+  read_booking_ids: number[];
 }
 
 export interface BookingTimelineEntry {
@@ -95,23 +96,7 @@ export interface BookingDocument {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getAdminPassword(): string {
-  if (typeof localStorage === "undefined") return "";
-  return localStorage.getItem(ADMIN_PASSWORD_KEY) ?? "";
-}
-
-function getAdminUsername(): string {
-  if (typeof localStorage === "undefined") return "";
-  return localStorage.getItem(ADMIN_USERNAME_KEY) ?? "";
-}
-
-function adminHeaders(): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    "x-admin-username": getAdminUsername(),
-    "x-admin-password": getAdminPassword(),
-  };
-}
+const JSON_HEADERS: HeadersInit = { "Content-Type": "application/json" };
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) throw new Error("UNAUTHORIZED");
@@ -148,7 +133,7 @@ export async function createRoom(data: Omit<Room, "id">): Promise<Room> {
   return handleResponse<Room>(
     await fetch("/api/rooms", {
       method: "POST",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -161,7 +146,7 @@ export async function updateRoom(
   return handleResponse<Room>(
     await fetch(`/api/rooms/${id}`, {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -171,7 +156,7 @@ export async function deleteRoom(id: number): Promise<void> {
   return handleResponse<void>(
     await fetch(`/api/rooms/${id}`, {
       method: "DELETE",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -198,13 +183,13 @@ export async function getBookings(params?: {
       ).toString()
     : "";
   return handleResponse<PaginatedBookings>(
-    await fetch(`/api/bookings${qs}`, { headers: adminHeaders() }),
+    await fetch(`/api/bookings${qs}`, { headers: JSON_HEADERS }),
   );
 }
 
 export async function getBooking(id: number): Promise<Booking> {
   return handleResponse<Booking>(
-    await fetch(`/api/bookings/${id}`, { headers: adminHeaders() }),
+    await fetch(`/api/bookings/${id}`, { headers: JSON_HEADERS }),
   );
 }
 
@@ -226,7 +211,7 @@ export async function updateBooking(
   return handleResponse<Booking>(
     await fetch(`/api/bookings/${id}`, {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -248,7 +233,7 @@ export async function markBookingRead(bookingId: number): Promise<void> {
   await handleResponse<{ ok: boolean }>(
     await fetch("/api/bookings/mark-read", {
       method: "POST",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ booking_id: bookingId }),
     }),
   );
@@ -258,7 +243,7 @@ export async function markBookingContacted(bookingId: number): Promise<void> {
   await handleResponse<{ ok: boolean }>(
     await fetch("/api/bookings/mark-contacted", {
       method: "POST",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ booking_id: bookingId }),
     }),
   );
@@ -266,7 +251,7 @@ export async function markBookingContacted(bookingId: number): Promise<void> {
 
 export async function getBookingReadIds(): Promise<number[]> {
   return handleResponse<number[]>(
-    await fetch("/api/bookings/read-ids", { headers: adminHeaders() }),
+    await fetch("/api/bookings/read-ids", { headers: JSON_HEADERS }),
   );
 }
 
@@ -275,7 +260,7 @@ export async function getBookingUnreadCount(): Promise<{
   pending_total: number;
 }> {
   return handleResponse(
-    await fetch("/api/bookings/unread-count", { headers: adminHeaders() }),
+    await fetch("/api/bookings/unread-count", { headers: JSON_HEADERS }),
   );
 }
 
@@ -284,7 +269,7 @@ export async function getBookingTimeline(
 ): Promise<BookingTimelineEntry[]> {
   return handleResponse<BookingTimelineEntry[]>(
     await fetch(`/api/bookings/${bookingId}/timeline`, {
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -306,7 +291,7 @@ export async function setRoomPricing(
   return handleResponse<RoomPricingTier[]>(
     await fetch(`/api/rooms/${roomId}/pricing`, {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -316,7 +301,7 @@ export async function setRoomPricing(
 
 export async function getUsers(): Promise<AdminUser[]> {
   return handleResponse<AdminUser[]>(
-    await fetch("/api/users", { headers: adminHeaders() }),
+    await fetch("/api/users", { headers: JSON_HEADERS }),
   );
 }
 
@@ -328,7 +313,7 @@ export async function createUser(data: {
   return handleResponse<AdminUser>(
     await fetch("/api/users", {
       method: "POST",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -341,7 +326,7 @@ export async function updateUserPassword(
   return handleResponse<AdminUser>(
     await fetch(`/api/users/${id}`, {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -354,7 +339,7 @@ export async function updateUserRole(
   return handleResponse<AdminUser>(
     await fetch(`/api/users/${id}`, {
       method: 'PUT',
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -364,7 +349,7 @@ export async function deleteUser(id: number): Promise<void> {
   return handleResponse<void>(
     await fetch(`/api/users/${id}`, {
       method: "DELETE",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -406,7 +391,7 @@ export type NewInventoryPayload = Omit<
 
 export async function getInventory(): Promise<InventoryItem[]> {
   return handleResponse<InventoryItem[]>(
-    await fetch("/api/inventory", { headers: adminHeaders() }),
+    await fetch("/api/inventory", { headers: JSON_HEADERS }),
   );
 }
 
@@ -416,7 +401,7 @@ export async function createInventoryItem(
   return handleResponse<InventoryItem>(
     await fetch("/api/inventory", {
       method: "POST",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -429,7 +414,7 @@ export async function updateInventoryItem(
   return handleResponse<InventoryItem>(
     await fetch(`/api/inventory/${id}`, {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -439,7 +424,7 @@ export async function deleteInventoryItem(id: number): Promise<void> {
   return handleResponse<void>(
     await fetch(`/api/inventory/${id}`, {
       method: "DELETE",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -449,7 +434,7 @@ export async function getExpiringWarrantyItems(
 ): Promise<InventoryItem[]> {
   return handleResponse<InventoryItem[]>(
     await fetch(`/api/inventory/expiring-warranty?days=${days}`, {
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -509,7 +494,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
   await handleResponse<{ key: string; value: string }>(
     await fetch("/api/settings", {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ key, value }),
     }),
   );
@@ -543,7 +528,7 @@ export async function addRoomMedia(data: {
   return handleResponse<RoomMedia>(
     await fetch("/api/room-media", {
       method: "POST",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify(data),
     }),
   );
@@ -553,7 +538,7 @@ export async function deleteRoomMedia(id: number): Promise<void> {
   return handleResponse<void>(
     await fetch(`/api/room-media/${id}`, {
       method: "DELETE",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -565,7 +550,7 @@ export async function setRoomMediaCover(
   return handleResponse<void>(
     await fetch(`/api/room-media/${id}`, {
       method: "PUT",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ action: "set_cover", room_id: roomId }),
     }),
   );
@@ -578,7 +563,7 @@ export async function getBookingDocuments(
 ): Promise<BookingDocument[]> {
   return handleResponse<BookingDocument[]>(
     await fetch(`/api/admin/documents?booking_id=${bookingId}`, {
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
     }),
   );
 }
@@ -588,18 +573,13 @@ export async function uploadBookingDocument(
   label: string,
   file: File,
 ): Promise<BookingDocument> {
-  const username = getAdminUsername();
-  const password = getAdminPassword();
   const fd = new FormData();
   fd.append("booking_id", String(bookingId));
   fd.append("label", label);
   fd.append("file", file);
+  // Cookies dikirim otomatis oleh browser (same-origin)
   return handleResponse<BookingDocument>(
-    await fetch("/api/admin/documents", {
-      method: "POST",
-      headers: { "x-admin-username": username, "x-admin-password": password },
-      body: fd,
-    }),
+    await fetch("/api/admin/documents", { method: "POST", body: fd }),
   );
 }
 
@@ -607,7 +587,7 @@ export async function deleteBookingDocument(id: number): Promise<void> {
   return handleResponse<void>(
     await fetch("/api/admin/documents", {
       method: "DELETE",
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id }),
     }),
   );
@@ -619,7 +599,7 @@ export async function bulkDeleteBookings(ids: number[]): Promise<{ deleted: numb
   return handleResponse(
     await fetch('/api/bookings/bulk-delete', {
       method: 'DELETE',
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ ids }),
     }),
   );
@@ -629,7 +609,7 @@ export async function bulkDeleteRooms(ids: number[]): Promise<{ deleted: number 
   return handleResponse(
     await fetch('/api/rooms/bulk-delete', {
       method: 'DELETE',
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ ids }),
     }),
   );
@@ -639,7 +619,7 @@ export async function bulkDeleteInventory(ids: number[]): Promise<{ deleted: num
   return handleResponse(
     await fetch('/api/inventory/bulk-delete', {
       method: 'DELETE',
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ ids }),
     }),
   );
@@ -649,7 +629,7 @@ export async function bulkDeleteUsers(ids: number[]): Promise<{ deleted: number 
   return handleResponse(
     await fetch('/api/users/bulk-delete', {
       method: 'DELETE',
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ ids }),
     }),
   );
@@ -657,17 +637,23 @@ export async function bulkDeleteUsers(ids: number[]): Promise<{ deleted: number 
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-/** POST /api/auth/login — returns true if credentials are valid. */
-export async function verifyAdminCredentials(
+/** POST /api/auth/login — verifikasi credentials, server set session cookie. */
+export async function login(
   username: string,
   password: string,
-): Promise<boolean> {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-  return res.ok;
+): Promise<{ username: string; role: string }> {
+  return handleResponse<{ username: string; role: string }>(
+    await fetch("/api/auth/login", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ username, password }),
+    }),
+  );
+}
+
+/** POST /api/auth/logout — hapus session di server dan clear cookie. */
+export async function logout(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" });
 }
 
 // ── Role Permissions ──────────────────────────────────────────────────────────
@@ -680,7 +666,7 @@ export interface RolePermissions {
 
 export async function getRolePermissions(): Promise<RolePermissions> {
   return handleResponse<RolePermissions>(
-    await fetch('/api/admin/role-permissions', { headers: adminHeaders() }),
+    await fetch('/api/admin/role-permissions', { headers: JSON_HEADERS }),
   );
 }
 
@@ -690,7 +676,7 @@ export async function updateRolePermissions(
   return handleResponse(
     await fetch('/api/admin/role-permissions', {
       method:  'PUT',
-      headers: adminHeaders(),
+      headers: JSON_HEADERS,
       body:    JSON.stringify({ permissions }),
     }),
   );
@@ -698,6 +684,6 @@ export async function updateRolePermissions(
 
 export async function getPermissionVersion(): Promise<{ version: number }> {
   return handleResponse(
-    await fetch('/api/admin/permission-version', { headers: adminHeaders() }),
+    await fetch('/api/admin/permission-version', { headers: JSON_HEADERS }),
   );
 }

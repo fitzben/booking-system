@@ -476,9 +476,11 @@ export default function BookingFormSimple({
                 Silakan lengkapi informasi data diri Anda.
               </Text>
 
+              <div style={{ marginBottom: 8, fontSize: 14, color: 'rgba(0, 0, 0, 0.88)' }}>
+                Tipe Pemohon
+              </div>
               <Form.Item
                 name="applicant_type"
-                label="Tipe Pemohon"
                 initialValue="personal"
               >
                 <Radio.Group
@@ -668,8 +670,10 @@ export default function BookingFormSimple({
               <Row gutter={24} align="top">
                 <Col xs={24}>
                   {/* Full Day toggle */}
+                  <div style={{ marginBottom: 8, fontSize: 14, color: 'rgba(0, 0, 0, 0.88)' }}>
+                    Durasi Peminjaman
+                  </div>
                   <Form.Item
-                    label="Durasi Peminjaman"
                     style={{ marginBottom: 24 }}
                   >
                     <Space className="duration-toggle-box">
@@ -714,9 +718,11 @@ export default function BookingFormSimple({
                   {isMobile ? (
                     <Row gutter={12}>
                       <Col xs={24} sm={12}>
+                        <div style={{ marginBottom: 8, fontSize: 14, color: 'rgba(0, 0, 0, 0.88)' }}>
+                          Tanggal Mulai
+                        </div>
                         <Form.Item
                           name="start_date_mobile"
-                          label="Tanggal Mulai"
                           rules={[
                             {
                               required: true,
@@ -742,9 +748,11 @@ export default function BookingFormSimple({
                         </Form.Item>
                       </Col>
                       <Col xs={24} sm={12}>
+                        <div style={{ marginBottom: 8, fontSize: 14, color: 'rgba(0, 0, 0, 0.88)' }}>
+                          Tanggal Selesai
+                        </div>
                         <Form.Item
                           name="end_date_mobile"
-                          label="Tanggal Selesai"
                           rules={[
                             {
                               required: true,
@@ -776,40 +784,46 @@ export default function BookingFormSimple({
                       </Col>
                     </Row>
                   ) : (
-                    <Form.Item
-                      name="date_range"
-                      label="Rentang Tanggal"
-                      rules={[
-                        { required: true, message: "Tanggal wajib dipilih" },
-                      ]}
-                    >
-                      <DatePicker.RangePicker
-                        style={{ width: "100%" }}
-                        disabledDate={disabledDate}
-                        disabled={availLoading}
-                        format="DD MMM YYYY"
-                        prefix={
-                          <CalendarOutlined style={{ color: COLORS.gold }} />
-                        }
-                        placeholder={["Mulai", "Selesai"]}
-                        size="large"
-                        defaultPickerValue={[dayjs(), dayjs()]}
-                        onChange={(values) =>
-                          handleDateChange(
-                            values as [Dayjs | null, Dayjs | null] | null,
-                          )
-                        }
-                      />
-                    </Form.Item>
+                    <>
+                      <div style={{ marginBottom: 8, fontSize: 14, color: 'rgba(0, 0, 0, 0.88)' }}>
+                        Rentang Tanggal
+                      </div>
+                      <Form.Item
+                        name="date_range"
+                        rules={[
+                          { required: true, message: "Tanggal wajib dipilih" },
+                        ]}
+                      >
+                        <DatePicker.RangePicker
+                          style={{ width: "100%" }}
+                          disabledDate={disabledDate}
+                          disabled={availLoading}
+                          format="DD MMM YYYY"
+                          prefix={
+                            <CalendarOutlined style={{ color: COLORS.gold }} />
+                          }
+                          placeholder={["Mulai", "Selesai"]}
+                          size="large"
+                          defaultPickerValue={[dayjs(), dayjs()]}
+                          onChange={(values) =>
+                            handleDateChange(
+                              values as [Dayjs | null, Dayjs | null] | null,
+                            )
+                          }
+                        />
+                      </Form.Item>
+                    </>
                   )}
                 </Col>
 
                 {/* Time range — only for same-day, non-full-day */}
                 {showTimePicker && (
                   <Col xs={24} md={12}>
+                    <div style={{ marginBottom: 8, fontSize: 14, color: 'rgba(0, 0, 0, 0.88)' }}>
+                      Rentang Waktu
+                    </div>
                     <Form.Item
                       name="time_range"
-                      label="Rentang Waktu"
                       rules={[
                         {
                           validator(

@@ -1,0 +1,17 @@
+.booking-table .ant-pagination {
+  padding: 12px 16px !important;
+  margin: 0 !important;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  border-radius: 0 0 8px 8px;
+}
+
+.booking-table .ant-pagination-total-text {
+  flex: 1;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.booking-table .ant-pagination-options {
+  margin-left: 8px;
+}

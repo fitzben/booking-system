@@ -92,6 +92,8 @@ export const ROOM_TYPE_OPTIONS = [
   { label: 'Lainnya', value: 'other' },
 ] as const;
 
-export const ADMIN_PASSWORD_KEY = 'admin_pwd';
+// Authentication is fully handled via HTTP-only session cookies and the AdminAuthContext.
+// These keys are being phased out in favor of the centralized context.
 export const ADMIN_USERNAME_KEY = 'admin_username';
 export const ADMIN_ROLE_KEY = 'admin_role';
+export const ADMIN_PASSWORD_KEY = 'admin_password';

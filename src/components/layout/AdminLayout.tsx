@@ -28,20 +28,35 @@ import {
   MenuUnfoldOutlined,
   MenuOutlined,
   PictureOutlined,
+  ToolOutlined,
 } from "@ant-design/icons";
 import {
-  ADMIN_PASSWORD_KEY,
-  ADMIN_USERNAME_KEY,
-  ADMIN_ROLE_KEY,
   ROLE_PERMISSIONS,
   ROLE_LABELS,
   type AdminRole,
 } from "../../lib/constants";
-import { verifyAdminCredentials, getBookingUnreadCount } from "../../lib/api";
+import {
+  login,
+  logout as apiLogout,
+  getBookingUnreadCount,
+} from "../../lib/api";
 import { MD_THEME, COLORS } from "../../lib/theme";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
+
+export interface AdminAuthContextType {
+  userRole: AdminRole | null;
+  currentUsername: string;
+}
+
+export const AdminAuthContext =
+  React.createContext<AdminAuthContextType | null>(null);
+
+export const useAdminAuth = () => {
+  const context = React.useContext(AdminAuthContext);
+  return context;
+};
 
 const SIDER_WIDTH = 220;
 const SIDER_COLLAPSED_WIDTH = 80;
@@ -67,12 +82,24 @@ export default function AdminLayout({
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const pwd = localStorage.getItem(ADMIN_PASSWORD_KEY);
-    const usr = localStorage.getItem(ADMIN_USERNAME_KEY);
-    const role = localStorage.getItem(ADMIN_ROLE_KEY);
-    setCurrentUsername(usr ?? "");
-    setUserRole(role as AdminRole ?? null);
-    setAuthed(!!(pwd && usr));
+    // Verifikasi session via server — satu-satunya sumber kebenaran auth.
+    // Cookies dikirim otomatis; username/role dikembalikan bila session valid.
+    fetch("/api/auth/me")
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{ username: string; role: AdminRole }>)
+          : null,
+      )
+      .then((data) => {
+        if (data) {
+          setCurrentUsername(data.username);
+          setUserRole(data.role);
+          setAuthed(true);
+        } else {
+          setAuthed(false);
+        }
+      })
+      .catch(() => setAuthed(false));
 
     const handleResize = () => {
       if (typeof window === "undefined") return;
@@ -98,36 +125,22 @@ export default function AdminLayout({
   }) => {
     setLoginLoading(true);
     setLoginError("");
-    const ok = await verifyAdminCredentials(values.username, values.password);
-    if (ok) {
-      localStorage.setItem(ADMIN_USERNAME_KEY, values.username);
-      localStorage.setItem(ADMIN_PASSWORD_KEY, values.password);
-      setCurrentUsername(values.username);
+    try {
+      // login() POST ke /api/auth/login — server buat session + set cookie HttpOnly
+      const data = await login(values.username, values.password);
+      setCurrentUsername(data.username);
+      setUserRole(data.role as AdminRole);
       setAuthed(true);
-      // Fetch role from server
-      fetch("/api/auth/me", {
-        headers: {
-          "x-admin-username": values.username,
-          "x-admin-password": values.password,
-        },
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          const role = (data as { role: AdminRole }).role;
-          localStorage.setItem(ADMIN_ROLE_KEY, role);
-          setUserRole(role);
-        })
-        .catch(() => undefined);
-    } else {
+    } catch {
       setLoginError("Username atau password salah. Silakan coba lagi.");
     }
     setLoginLoading(false);
   };
 
-  const handleLogout = (reason?: "inactivity" | "unauthorized" | "permission_changed") => {
-    localStorage.removeItem(ADMIN_PASSWORD_KEY);
-    localStorage.removeItem(ADMIN_USERNAME_KEY);
-    localStorage.removeItem(ADMIN_ROLE_KEY);
+  const handleLogout = (
+    reason?: "inactivity" | "unauthorized" | "permission_changed",
+  ) => {
+    apiLogout().catch(() => undefined); // hapus session di server + clear cookie
     setAuthed(false);
     setCurrentUsername("");
     setUserRole(null);
@@ -204,65 +217,68 @@ export default function AdminLayout({
   // Fetch sekali saat mount — tanpa polling
   useEffect(() => {
     if (!authed || !userRole) return;
-    if (ROLE_PERMISSIONS[userRole as AdminRole]?.bookings === 'none') return;
+    if (ROLE_PERMISSIONS[userRole as AdminRole]?.bookings === "none") return;
 
     getBookingUnreadCount()
-      .then(data => setUnreadCount(data.unread_count))
+      .then((data) => setUnreadCount(data.unread_count))
       .catch(() => undefined);
   }, [authed, userRole]);
 
   const perms = userRole ? ROLE_PERMISSIONS[userRole as AdminRole] : null;
 
-  const canAccessBookings  = perms?.bookings  !== 'none';
-  const canAccessRooms     = perms?.rooms     !== 'none';
-  const canAccessInventory = perms?.inventory !== 'none';
-  const canAccessUsers     = perms?.users     !== 'none';
-  const canAccessReports   = perms?.reports   !== 'none';
-  const canAccessSettings  = perms?.settings  !== 'none';
+  const canAccessBookings = perms?.bookings !== "none";
+  const canAccessRooms = perms?.rooms !== "none";
+  const canAccessInventory = perms?.inventory !== "none";
+  const canAccessUsers = perms?.users !== "none";
+  const canAccessReports = perms?.reports !== "none";
+  const canAccessSettings = perms?.settings !== "none";
 
   const navItems = [
+    canAccessReports && {
+      key: "reports",
+      icon: <BarChartOutlined />,
+      label: <a href="/admin/reports">Laporan</a>,
+    },
     canAccessBookings && {
-      key: 'bookings',
+      key: "bookings",
       icon: <UnorderedListOutlined />,
       label: (
         <a href="/admin">
           Bookings
           {unreadCount > 0 && (
-            <Badge count={unreadCount} size="small"
-              style={{ marginLeft: 8, backgroundColor: '#d97706' }} />
+            <Badge
+              count={unreadCount}
+              size="small"
+              style={{ marginLeft: 8, backgroundColor: "#d97706" }}
+            />
           )}
         </a>
       ),
     },
     canAccessRooms && {
-      key: 'rooms',
+      key: "rooms",
       icon: <AppstoreOutlined />,
       label: <a href="/admin/rooms">Ruangan</a>,
     },
+    (canAccessBookings || canAccessInventory || canAccessRooms) && {
+      type: "divider" as const,
+    },
+    canAccessInventory && {
+      key: "inventory",
+      icon: <ToolOutlined />,
+      label: <a href="/admin/inventory">Inventaris</a>,
+    },
     canAccessUsers && {
-      key: 'users',
+      key: "users",
       icon: <TeamOutlined />,
       label: <a href="/admin/users">Users</a>,
     },
-    (canAccessBookings || canAccessInventory || canAccessRooms) && {
-      type: 'divider' as const,
-    },
-    canAccessInventory && {
-      key: 'inventory',
-      icon: <SettingOutlined />,
-      label: <a href="/admin/inventory">Inventaris</a>,
-    },
     canAccessSettings && {
-      key: 'settings',
-      icon: <PictureOutlined />,
+      key: "settings",
+      icon: <SettingOutlined />,
       label: <a href="/admin/settings">Pengaturan</a>,
     },
-    canAccessReports && {
-      key: 'reports',
-      icon: <BarChartOutlined />,
-      label: <a href="/admin/reports">Laporan</a>,
-    },
-  ].filter(Boolean) as import('antd').MenuProps['items'];
+  ].filter(Boolean) as import("antd").MenuProps["items"];
 
   if (authed === null) {
     return (
@@ -367,211 +383,198 @@ export default function AdminLayout({
   }
 
   return (
-    <StyleProvider ssrInline layer hashPriority="high">
-      <ConfigProvider theme={MD_THEME}>
-        <Layout style={{ minHeight: "100vh" }}>
-          <Sider
-            collapsible
-            collapsed={collapsed}
-            onCollapse={setCollapsed}
-            width={SIDER_WIDTH}
-            collapsedWidth={isMobile ? 0 : SIDER_COLLAPSED_WIDTH}
-            theme="dark"
-            breakpoint="lg"
-            onBreakpoint={(broken) => {
-              setIsMobile(broken);
-              if (broken) setCollapsed(true);
-            }}
-            style={{
-              background: COLORS.navyDark,
-              position: "fixed",
-              left: 0,
-              top: 0,
-              bottom: 0,
-              zIndex: 200,
-              overflow: "hidden",
-            }}
-          >
-            <div
+    <AdminAuthContext.Provider value={{ userRole, currentUsername }}>
+      <StyleProvider ssrInline layer hashPriority="high">
+        <ConfigProvider theme={MD_THEME}>
+          <Layout style={{ minHeight: "100vh" }}>
+            <Sider
+              collapsible
+              collapsed={collapsed}
+              onCollapse={setCollapsed}
+              width={SIDER_WIDTH}
+              collapsedWidth={isMobile ? 0 : SIDER_COLLAPSED_WIDTH}
+              theme="dark"
+              breakpoint="lg"
+              onBreakpoint={(broken) => {
+                setIsMobile(broken);
+                if (broken) setCollapsed(true);
+              }}
               style={{
-                padding: collapsed ? "18px 0" : "18px 20px",
-                borderBottom: "1px solid rgba(255,255,255,0.07)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: collapsed ? "center" : "flex-start",
-                gap: 10,
-                transition: "all 0.2s",
+                background: COLORS.navyDark,
+                position: "fixed",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                zIndex: 200,
+                overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: COLORS.gold,
+                  padding: collapsed ? "18px 0" : "18px 20px",
+                  borderBottom: "1px solid rgba(255,255,255,0.07)",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                  justifyContent: collapsed ? "center" : "flex-start",
+                  gap: 10,
+                  transition: "all 0.2s",
                 }}
               >
-                <CalendarOutlined
-                  style={{ color: COLORS.navy, fontSize: 16 }}
-                />
-              </div>
-              {!collapsed && (
-                <div>
-                  <div
-                    style={{
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    MD Entertainment
+                <img src="/MDE_logo.png" alt="Logo" width={35} height={20} />
+                {!collapsed && (
+                  <div>
+                    <div
+                      style={{
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      MD Entertainment
+                    </div>
+                    <div
+                      style={{
+                        color: COLORS.gold,
+                        fontSize: 9,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Admin Console
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      color: COLORS.gold,
-                      fontSize: 9,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Admin Console
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={[activeKey]}
-              items={navItems}
-              style={{
-                background: COLORS.navyDark,
-                border: "none",
-                marginTop: 8,
-              }}
-            />
-          </Sider>
-
-          <Layout
-            style={{
-              marginLeft: collapsed
-                ? isMobile
-                  ? 0
-                  : SIDER_COLLAPSED_WIDTH
-                : SIDER_WIDTH,
-              transition: "margin-left 0.2s",
-            }}
-          >
-            <Header
-              style={{
-                background: COLORS.navy,
-                padding: "0 24px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                position: "sticky",
-                top: 0,
-                zIndex: 100,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
-                height: 56,
-              }}
-            >
-              <Space align="center">
-                <Button
-                  type="text"
-                  icon={
-                    collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
-                  }
-                  onClick={() => setCollapsed(!collapsed)}
-                  style={{
-                    fontSize: "16px",
-                    width: 40,
-                    height: 40,
-                    color: "rgba(255,255,255,0.7)",
-                    display: isMobile ? "flex" : collapsed ? "flex" : "none",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                />
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: 11,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    display: isMobile ? "none" : "inline",
-                  }}
-                >
-                  Studio &amp; Room Booking Admin
-                </Text>
-              </Space>
-
-              <Space size={12}>
-                {currentUsername && !isMobile && (
-                  <Text
-                    style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}
-                  >
-                    {currentUsername}
-                  </Text>
                 )}
-                <Button
-                  type="text"
-                  icon={<LogoutOutlined />}
-                  onClick={() => handleLogout()}
-                  style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}
-                >
-                  {(!collapsed || isMobile) && "Keluar"}
-                </Button>
-              </Space>
-            </Header>
+              </div>
 
-            <Content
+              <Menu
+                theme="dark"
+                mode="inline"
+                selectedKeys={[activeKey]}
+                items={navItems}
+                style={{
+                  background: COLORS.navyDark,
+                  border: "none",
+                  marginTop: 8,
+                }}
+              />
+            </Sider>
+
+            <Layout
               style={{
-                padding: isMobile ? 12 : 24,
-                background: COLORS.bgGray,
-                minHeight: "calc(100vh - 56px)",
+                marginLeft: collapsed
+                  ? isMobile
+                    ? 0
+                    : SIDER_COLLAPSED_WIDTH
+                  : SIDER_WIDTH,
+                transition: "margin-left 0.2s",
               }}
             >
-              {children}
-            </Content>
-          </Layout>
-        </Layout>
+              <Header
+                style={{
+                  background: COLORS.navy,
+                  padding: "0 24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 100,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                  height: 56,
+                }}
+              >
+                <Space align="center">
+                  <Button
+                    type="text"
+                    icon={
+                      collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+                    }
+                    onClick={() => setCollapsed(!collapsed)}
+                    style={{
+                      fontSize: "16px",
+                      width: 40,
+                      height: 40,
+                      color: "rgba(255,255,255,0.7)",
+                      display: isMobile ? "flex" : collapsed ? "flex" : "none",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: "rgba(255,255,255,0.4)",
+                      fontSize: 11,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      display: isMobile ? "none" : "inline",
+                    }}
+                  >
+                    Studio &amp; Room Booking Admin
+                  </Text>
+                </Space>
 
-        <Modal
-          open={showTimeoutWarning}
-          title="Sesi Akan Berakhir"
-          closable={false}
-          maskClosable={false}
-          footer={[
-            <Button
-              key="stay"
-              type="primary"
-              onClick={() => {
-                resetTimer();
-                setShowTimeoutWarning(false);
-              }}
-            >
-              Tetap Masuk
-            </Button>,
-            <Button
-              key="logout"
-              danger
-              onClick={() => handleLogout("inactivity")}
-            >
-              Keluar Sekarang
-            </Button>,
-          ]}
-        >
-          Anda tidak aktif selama 29 menit. Sesi akan otomatis berakhir dalam 1
-          menit.
-        </Modal>
-      </ConfigProvider>
-    </StyleProvider>
+                <Space size={12}>
+                  {currentUsername && !isMobile && (
+                    <Text
+                      style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}
+                    >
+                      {currentUsername}
+                    </Text>
+                  )}
+                  <Button
+                    type="text"
+                    icon={<LogoutOutlined />}
+                    onClick={() => handleLogout()}
+                    style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}
+                  >
+                    {(!collapsed || isMobile) && "Keluar"}
+                  </Button>
+                </Space>
+              </Header>
+
+              <Content
+                style={{
+                  padding: isMobile ? 12 : 24,
+                  background: COLORS.bgGray,
+                  minHeight: "calc(100vh - 56px)",
+                }}
+              >
+                {children}
+              </Content>
+            </Layout>
+          </Layout>
+
+          <Modal
+            open={showTimeoutWarning}
+            title="Sesi Akan Berakhir"
+            closable={false}
+            maskClosable={false}
+            footer={[
+              <Button
+                key="stay"
+                type="primary"
+                onClick={() => {
+                  resetTimer();
+                  setShowTimeoutWarning(false);
+                }}
+              >
+                Tetap Masuk
+              </Button>,
+              <Button
+                key="logout"
+                danger
+                onClick={() => handleLogout("inactivity")}
+              >
+                Keluar Sekarang
+              </Button>,
+            ]}
+          >
+            Anda tidak aktif selama 29 menit. Sesi akan otomatis berakhir dalam
+            1 menit.
+          </Modal>
+        </ConfigProvider>
+      </StyleProvider>
+    </AdminAuthContext.Provider>
   );
 }

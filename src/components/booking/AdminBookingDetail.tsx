@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Badge,
   Card,
   Descriptions,
   Tag,
@@ -70,7 +69,6 @@ import BookingHandoverTab from "./BookingHandoverTab";
 import BookingEquipmentTab from "./BookingEquipmentTab";
 import BookingIncidentTab from "./BookingIncidentTab";
 import BookingDocumentsTab from "./BookingDocumentsTab";
-import { COLORS } from "../../lib/theme";
 import { validateWhatsapp } from "./BookingFormSimple";
 
 const { Title, Text } = Typography;
@@ -1203,13 +1201,13 @@ export default function AdminBookingDetail({
                   <Space size={6}>
                     <ClockCircleOutlined />
                     Timeline
-                    {timeline.length > 0 && (
+                    {/* {timeline.length > 0 && (
                       <Badge
                         count={timeline.length}
                         size="small"
                         style={{ backgroundColor: "#6b7280" }}
                       />
-                    )}
+                    )} */}
                   </Space>
                 ),
                 children: (

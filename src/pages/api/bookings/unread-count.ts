@@ -15,7 +15,7 @@ export const GET: APIRoute = async (context) => {
     FROM bookings b
     LEFT JOIN booking_reads br
       ON br.booking_id = b.id AND br.role = ?
-    WHERE b.status = 'pending'
+    WHERE b.status IN ('pending', 'approved', 'in_progress')
   `).bind(user.role).first<{ pending_total: number; unread_count: number }>();
 
   return Response.json({

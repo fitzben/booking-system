@@ -14,7 +14,7 @@ import {
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined } from '@ant-design/icons';
-import AdminLayout from '../layout/AdminLayout';
+import AdminLayout, { useAdminAuth } from '../layout/AdminLayout';
 import { getRooms, createRoom, updateRoom, deleteRoom, getRoomPricing, setRoomPricing, bulkDeleteRooms } from '../../lib/api';
 import type { Room } from '../../lib/api';
 import { ROOM_TYPE_OPTIONS, ADMIN_ROLE_KEY, ROLE_PERMISSIONS, type AdminRole } from '../../lib/constants';
@@ -30,12 +30,13 @@ const { Text } = Typography;
 const typeLabel = (type: string) =>
   ROOM_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type;
 
-export default function AdminRoomsPage() {
+// ── Component ──────────────────────────────────────────────────────────────────
+
+function AdminRoomsContent() {
+  const auth = useAdminAuth();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [userRole] = useState<string>(
-    () => localStorage.getItem(ADMIN_ROLE_KEY) ?? ''
-  );
+  const userRole = auth?.userRole || '';
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -272,8 +273,10 @@ export default function AdminRoomsPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  if (!auth) return <div style={{ textAlign: "center", padding: "60px 0" }}><Spin /></div>;
+
   return (
-    <AdminLayout activeKey="rooms">
+    <>
       {contextHolder}
       <Space direction="vertical" size={20} style={{ width: '100%' }}>
         <PageHeader
@@ -370,6 +373,14 @@ export default function AdminRoomsPage() {
           <RoomForm form={form} tiersLoading={tiersLoading} />
         )}
       </Modal>
+    </>
+  );
+}
+
+export default function AdminRoomsPage() {
+  return (
+    <AdminLayout activeKey="rooms">
+      <AdminRoomsContent />
     </AdminLayout>
   );
 }

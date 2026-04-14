@@ -1,7 +1,6 @@
 // Client-side media helpers: convert image→WebP, video→WebM, then upload to /api/upload.
 // convertVideoToWebM lazy-loads @ffmpeg/ffmpeg so it doesn't bloat the initial bundle.
 
-import { ADMIN_PASSWORD_KEY, ADMIN_USERNAME_KEY } from "./constants";
 
 // ── Image → WebP via Canvas ───────────────────────────────────────────────────
 
@@ -88,9 +87,6 @@ export async function uploadMedia(
   folder: string,
   filenameBase: string,
 ): Promise<{ url: string; key: string; contentType: string }> {
-  const username = localStorage.getItem(ADMIN_USERNAME_KEY) ?? "";
-  const password = localStorage.getItem(ADMIN_PASSWORD_KEY) ?? "";
-
   const mimeToExt: Record<string, string> = {
     "image/webp": "webp",
     "image/jpeg": "jpg",
@@ -108,14 +104,8 @@ export async function uploadMedia(
   fd.append("file", new File([blob], `${filenameBase}.${ext}`, { type: blob.type }));
   fd.append("folder", folder);
 
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    headers: {
-      "x-admin-username": username,
-      "x-admin-password": password,
-    },
-    body: fd,
-  });
+  // Cookies dikirim otomatis oleh browser (same-origin)
+  const res = await fetch("/api/upload", { method: "POST", body: fd });
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;

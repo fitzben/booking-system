@@ -1,10 +1,12 @@
 import type { APIRoute } from "astro";
 import { getDB, createBooking, getBookingById, writeAuditLog, generateBookingCode, addTimelineEntry } from "../../lib/db";
-import { checkAuth } from "../../lib/auth";
+import { checkAuth, getAuthUser } from "../../lib/auth";
 
 export const GET: APIRoute = async (context) => {
   const unauth = await checkAuth(context);
   if (unauth) return unauth;
+
+  const user = await getAuthUser(context);
 
   const url = new URL(context.request.url);
 
@@ -89,7 +91,7 @@ export const GET: APIRoute = async (context) => {
     .bind(...bindings, pageSize, offset)
     .all();
 
-  // Aggregate stats — always across ALL data (no filter/search)
+  // Aggregate basic stats
   const statsRow = await db.prepare(`
     SELECT
       COUNT(*)                                                              AS total,
@@ -99,8 +101,8 @@ export const GET: APIRoute = async (context) => {
       SUM(CASE WHEN status = 'finished'    THEN 1 ELSE 0 END)             AS finished,
       SUM(CASE WHEN status = 'rejected'    THEN 1 ELSE 0 END)             AS rejected,
       SUM(CASE WHEN contacted_at IS NOT NULL THEN 1 ELSE 0 END)           AS contacted,
-      SUM(CASE WHEN contacted_at IS NULL
-               AND status NOT IN ('rejected','cancelled','finished')
+      SUM(CASE WHEN contacted_at IS NULL 
+               AND status NOT IN ('rejected','cancelled','finished') 
                THEN 1 ELSE 0 END)                                         AS not_contacted
     FROM bookings
   `).first<{
@@ -109,12 +111,34 @@ export const GET: APIRoute = async (context) => {
     contacted: number; not_contacted: number;
   }>();
 
+  // Get unread count separately for the current role
+  const unreadCountRow = await db.prepare(`
+    SELECT COUNT(*) AS unread_count
+    FROM bookings b
+    LEFT JOIN booking_reads br ON br.booking_id = b.id AND br.role = ?
+    WHERE br.booking_id IS NULL AND b.status IN ('pending', 'approved', 'in_progress')
+  `).bind(user?.role ?? 'booking_admin').first<{ unread_count: number }>();
+
+  const stats = {
+    ...(statsRow || { 
+      total: 0, pending: 0, approved: 0, in_progress: 0, 
+      finished: 0, rejected: 0, contacted: 0, not_contacted: 0 
+    }),
+    unread_count: unreadCountRow?.unread_count ?? 0,
+  };
+
+  const readIds = await db
+    .prepare('SELECT booking_id FROM booking_reads WHERE role = ?')
+    .bind(user?.role ?? 'booking_admin')
+    .all<{ booking_id: number }>();
+
   return Response.json({
     data:      results,
     total,
     page,
     page_size: pageSize,
-    stats:     statsRow,
+    stats,
+    read_booking_ids: readIds.results.map(r => r.booking_id),
   });
 };
 

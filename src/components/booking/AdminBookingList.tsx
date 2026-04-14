@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Table,
   Tag,
@@ -39,12 +39,10 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 dayjs.extend(utc);
 dayjs.extend(timezone);
-import AdminLayout from "../layout/AdminLayout";
+import AdminLayout, { useAdminAuth } from "../layout/AdminLayout";
 import {
   getBookings,
   getExpiringWarrantyItems,
-  getBookingReadIds,
-  getBookingUnreadCount,
   markBookingRead,
   bulkDeleteBookings,
   updateBooking,
@@ -56,9 +54,6 @@ import {
   STATUS_LABELS,
   STATUS_COLORS,
   type BookingStatus,
-  ADMIN_ROLE_KEY,
-  ADMIN_USERNAME_KEY,
-  ADMIN_PASSWORD_KEY,
   ROLE_PERMISSIONS,
   type AdminRole,
 } from "../../lib/constants";
@@ -66,13 +61,13 @@ import { fmtDate, parseDetails } from "../../lib/utils";
 import StatusTag from "../ui/StatusTag";
 import PageHeader from "../ui/PageHeader";
 import BookingFormSimple from "./BookingFormSimple";
+import "./AdminBookingList.css";
 
-export default function AdminBookingList() {
+function AdminBookingListContent() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [userRole] = useState<string>(
-    () => localStorage.getItem(ADMIN_ROLE_KEY) ?? "",
-  );
+  const auth = useAdminAuth();
+  const userRole = auth?.userRole || "";
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -83,9 +78,10 @@ export default function AdminBookingList() {
   );
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [hidePast, setHidePast] = useState(true);
 
   // Stats kept separate — always reflects all data
   const [stats, setStats] = useState({
@@ -97,13 +93,10 @@ export default function AdminBookingList() {
     rejected: 0,
     contacted: 0,
     not_contacted: 0,
+    unread_count: 0,
   });
   const [expiringItems, setExpiringItems] = useState<InventoryItem[]>([]);
   const [readIds, setReadIds] = useState<Set<number>>(new Set());
-  const [unreadStats, setUnreadStats] = useState<{
-    unread_count: number;
-    pending_total: number;
-  } | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
@@ -130,15 +123,21 @@ export default function AdminBookingList() {
         sort_field: params?.sortField ?? sortField,
         sort_order: params?.sortOrder ?? sortOrder,
       };
-      const df = params?.dateFrom !== undefined ? params.dateFrom : dateFrom;
+      const effectiveDateFrom =
+        params?.dateFrom !== undefined
+          ? params.dateFrom
+          : hidePast && !dateFrom
+            ? dayjs().format("YYYY-MM-DD")
+            : dateFrom;
       const dt = params?.dateTo !== undefined ? params.dateTo : dateTo;
-      if (df) p.date_from = df;
+      if (effectiveDateFrom) p.date_from = effectiveDateFrom;
       if (dt) p.date_to = dt;
       const json = await getBookings(p);
 
       setBookings(json.data);
       setTotal(json.total);
       if (json.stats) setStats(json.stats);
+      if (json.read_booking_ids) setReadIds(new Set(json.read_booking_ids));
       setSelectedIds([]);
     } catch {
       // handled at AdminLayout level
@@ -148,17 +147,13 @@ export default function AdminBookingList() {
   };
 
   useEffect(() => {
+    if (!userRole) return;
+
     fetchBookings();
     getExpiringWarrantyItems(30)
       .then(setExpiringItems)
       .catch(() => undefined);
-    getBookingUnreadCount()
-      .then(setUnreadStats)
-      .catch(() => undefined);
-    getBookingReadIds()
-      .then((ids) => setReadIds(new Set(ids)))
-      .catch(() => undefined);
-  }, []);
+  }, [userRole]);
 
   const perms = userRole ? ROLE_PERMISSIONS[userRole as AdminRole] : null;
   const canWrite = perms?.bookings === "write";
@@ -171,10 +166,6 @@ export default function AdminBookingList() {
       messageApi.success(`${result.deleted} booking berhasil dihapus.`);
       setSelectedIds([]);
       fetchBookings();
-      getBookingReadIds()
-        .then((ids) => setReadIds(new Set(ids)))
-        .catch(() => undefined);
-      refreshStats();
     } catch (err) {
       messageApi.error(
         err instanceof Error ? err.message : "Gagal menghapus booking.",
@@ -187,12 +178,7 @@ export default function AdminBookingList() {
   const refreshStats = async () => {
     try {
       const qs = new URLSearchParams({ page: "1", page_size: "1" }).toString();
-      const res = await fetch(`/api/bookings?${qs}`, {
-        headers: {
-          "x-admin-username": localStorage.getItem(ADMIN_USERNAME_KEY) ?? "",
-          "x-admin-password": localStorage.getItem(ADMIN_PASSWORD_KEY) ?? "",
-        },
-      });
+      const res = await fetch(`/api/bookings?${qs}`);
       if (!res.ok) return;
       const json = (await res.json()) as { stats?: typeof stats };
       if (json.stats) setStats(json.stats);
@@ -522,7 +508,7 @@ export default function AdminBookingList() {
   });
 
   return (
-    <AdminLayout activeKey="bookings">
+    <>
       {contextHolder}
       <Space direction="vertical" size={20} style={{ width: "100%" }}>
         {criticalWarranty.length > 0 && (
@@ -570,6 +556,7 @@ export default function AdminBookingList() {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={() => setCreateOpen(true)}
+                style={{ color: "#fff" }}
               >
                 Tambah Booking
               </Button>
@@ -604,29 +591,31 @@ export default function AdminBookingList() {
         </Row>
 
         {/* ── Awareness Bar ── */}
-        {((unreadStats?.unread_count ?? 0) > 0 ||
+        {((stats.unread_count ?? 0) > 0 ||
           stats.not_contacted > 0 ||
           stats.contacted > 0) &&
           (() => {
             // Determine urgency level
-            const isUrgent = stats.not_contacted > 0;
-            const isAllGood =
-              stats.not_contacted === 0 &&
-              (unreadStats?.unread_count ?? 0) === 0;
+            const unreadCount = stats.unread_count ?? 0;
+            const hasUnread = unreadCount > 0;
+            const hasNotContacted = stats.not_contacted > 0;
+
+            const isUrgent = hasUnread || hasNotContacted;
+            const isAllGood = !isUrgent;
 
             const barColor = isAllGood
               ? "#059669"
-              : isUrgent
-                ? "#d97706"
-                : "#2563eb";
+              : hasUnread
+                ? "#d97706" // Warna orange untuk belum dibaca (lebih mendesak/baru)
+                : "#2563eb"; // Biru untuk follow up biasa
             const barBg = isAllGood
               ? "#f0fdf4"
-              : isUrgent
+              : hasUnread
                 ? "#fffbeb"
                 : "#eff6ff";
             const barBorder = isAllGood
               ? "#86efac"
-              : isUrgent
+              : hasUnread
                 ? "#fde68a"
                 : "#bfdbfe";
 
@@ -652,9 +641,9 @@ export default function AdminBookingList() {
                   >
                     {isAllGood
                       ? "Semua booking sudah ditangani"
-                      : isUrgent
-                        ? `${stats.not_contacted} booking belum dihubungi`
-                        : "Ada booking yang perlu perhatian"}
+                      : hasUnread
+                        ? `${unreadCount} booking belum dibaca`
+                        : `${stats.not_contacted} booking belum dihubungi`}
                   </Text>
                 </Space>
 
@@ -668,9 +657,7 @@ export default function AdminBookingList() {
                       style={{
                         fontSize: 12,
                         color:
-                          (unreadStats?.unread_count ?? 0) > 0
-                            ? "#d97706"
-                            : "#9ca3af",
+                          (stats.unread_count ?? 0) > 0 ? "#d97706" : "#9ca3af",
                       }}
                     />
                     <Text style={{ fontSize: 12, color: "#6b7280" }}>
@@ -679,12 +666,12 @@ export default function AdminBookingList() {
                         style={{
                           fontWeight: 700,
                           color:
-                            (unreadStats?.unread_count ?? 0) > 0
+                            (stats.unread_count ?? 0) > 0
                               ? "#d97706"
                               : "#374151",
                         }}
                       >
-                        {unreadStats?.unread_count ?? 0}
+                        {stats.unread_count ?? 0}
                       </span>
                     </Text>
                   </Space>
@@ -845,6 +832,20 @@ export default function AdminBookingList() {
                         </Button>
                       );
                     })}
+                    {/* <Button
+                      size="small"
+                      type={hidePast ? "primary" : "default"}
+                      ghost={hidePast}
+                      onClick={() => {
+                        const next = !hidePast;
+                        setHidePast(next);
+                        setPage(1);
+                        fetchBookings({ page: 1, dateFrom: next ? dayjs().format("YYYY-MM-DD") : "" });
+                      }}
+                      style={hidePast ? { borderColor: "#d97706", color: "#d97706" } : { color: "#6b7280" }}
+                    >
+                      {hidePast ? "📅 Sembunyikan Lewat" : "Tampilkan semua"}
+                    </Button> */}
                   </Space>
                 </Col>
 
@@ -989,8 +990,10 @@ export default function AdminBookingList() {
             columns={columns}
             rowKey="id"
             loading={loading}
-            rowSelection={rowSelection}
+            rowSelection={canWrite ? rowSelection : undefined}
             onChange={handleTableChange}
+            style={{ borderRadius: 0 }}
+            className="booking-table"
             pagination={{
               current: page,
               pageSize: pageSize,
@@ -998,7 +1001,15 @@ export default function AdminBookingList() {
               showSizeChanger: true,
               pageSizeOptions: ["10", "20", "50", "100"],
               showTotal: (t, range) =>
-                `${range[0]}-${range[1]} dari ${t} booking`,
+                `${range[0]}–${range[1]} dari ${t} booking`,
+              style: {
+                padding: "12px 16px",
+                margin: 0,
+                borderTop: "1px solid #f0f0f0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+              },
             }}
             scroll={{ x: "max-content" }}
             onRow={(record) => ({
@@ -1011,14 +1022,10 @@ export default function AdminBookingList() {
                 if (!readIds.has(record.id)) {
                   markBookingRead(record.id).catch(() => undefined);
                   setReadIds((prev) => new Set([...prev, record.id]));
-                  setUnreadStats((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          unread_count: Math.max(0, prev.unread_count - 1),
-                        }
-                      : prev,
-                  );
+                  setStats((prev) => ({
+                    ...prev,
+                    unread_count: Math.max(0, prev.unread_count - 1),
+                  }));
                 }
                 window.location.href = `/admin/${record.id}`;
               },
@@ -1035,7 +1042,13 @@ export default function AdminBookingList() {
         footer={null}
         width="min(720px, calc(100vw - 32px))"
         destroyOnHidden
-        styles={{ body: { maxHeight: "80vh", overflowY: "auto", padding: 0 } }}
+        styles={{
+          body: {
+            maxHeight: "80vh",
+            overflowY: "auto",
+            padding: 0,
+          },
+        }}
       >
         <BookingFormSimple
           hideHeader={true}
@@ -1047,6 +1060,14 @@ export default function AdminBookingList() {
           }}
         />
       </Modal>
+    </>
+  );
+}
+
+export default function AdminBookingList() {
+  return (
+    <AdminLayout activeKey="bookings">
+      <AdminBookingListContent />
     </AdminLayout>
   );
 }

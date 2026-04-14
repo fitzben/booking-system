@@ -5,7 +5,6 @@ import type { UploadFile, UploadProps } from 'antd';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import type { Room } from '../../lib/api';
-import { ADMIN_PASSWORD_KEY, ADMIN_USERNAME_KEY } from '../../lib/constants';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -77,13 +76,10 @@ export default function InventoryForm({ rooms }: InventoryFormProps) {
     const { file, onSuccess, onError } = options;
     setUploading(true);
     try {
-      const username = localStorage.getItem(ADMIN_USERNAME_KEY) ?? '';
-      const password = localStorage.getItem(ADMIN_PASSWORD_KEY) ?? '';
       const fd = new FormData();
       fd.append('file', file as File);
       const res = await fetch('/api/inventory/upload-photo', {
         method: 'POST',
-        headers: { 'x-admin-username': username, 'x-admin-password': password },
         body: fd,
       });
       if (!res.ok) {
@@ -103,14 +99,10 @@ export default function InventoryForm({ rooms }: InventoryFormProps) {
   const handleRemove: UploadProps['onRemove'] = async () => {
     const key = form.getFieldValue('photo_key') as string | null | undefined;
     if (key) {
-      const username = localStorage.getItem(ADMIN_USERNAME_KEY) ?? '';
-      const password = localStorage.getItem(ADMIN_PASSWORD_KEY) ?? '';
       await fetch('/api/inventory/upload-photo', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-username': username,
-          'x-admin-password': password,
         },
         body: JSON.stringify({ photo_key: key }),
       }).catch(() => undefined);

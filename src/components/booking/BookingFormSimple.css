@@ -27,6 +27,7 @@
   font-weight: 600;
   height: 48px;
   border-radius: 12px;
+  color: #fff;
 }
 .bfs-btn-primary:not(:disabled):hover {
   background: #b08d22 !important;

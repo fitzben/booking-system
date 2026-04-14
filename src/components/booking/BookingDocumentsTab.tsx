@@ -15,9 +15,7 @@ import {
   LinkOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import type { BookingDocument } from '../../lib/api';
 import { getBookingDocuments, uploadBookingDocument, deleteBookingDocument } from '../../lib/api';
-import { ADMIN_PASSWORD_KEY, ADMIN_USERNAME_KEY } from '../../lib/constants';
 
 const { Text } = Typography;
 
@@ -89,11 +87,7 @@ export default function BookingDocumentsTab({ bookingId }: Props) {
   const handleOpen = async (doc: BookingDocument) => {
     setOpeningId(doc.id);
     try {
-      const username = localStorage.getItem(ADMIN_USERNAME_KEY) ?? '';
-      const password = localStorage.getItem(ADMIN_PASSWORD_KEY) ?? '';
-      const res = await fetch(`/api/admin/documents/${doc.id}`, {
-        headers: { 'x-admin-username': username, 'x-admin-password': password },
-      });
+      const res = await fetch(`/api/admin/documents/${doc.id}`);
       if (!res.ok) { setError('Gagal membuka dokumen.'); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
