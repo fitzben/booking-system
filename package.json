@@ -7,7 +7,7 @@
     "dev": "npm run copy:antd-css && astro dev",
     "build": "npm run copy:antd-css && IS_DEPLOYING=true astro build",
     "preview": "astro preview",
-    "deploy": "npm run build && wrangler pages deploy ./dist",
+    "deploy": "npm run build && wrangler pages deploy ./dist --branch production",
     "db:migrate:local": "npx wrangler d1 execute mde-booking-db --local --file=./migrations/001-init.sql",
     "db:migrate:remote": "npx wrangler d1 execute mde-booking-db --remote --file=./migrations/001-init.sql"
   },

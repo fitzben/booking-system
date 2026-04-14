@@ -7,7 +7,7 @@ export const POST: APIRoute = async (context) => {
   if (unauth) return unauth;
 
   const user = await getAuthUser(context);
-  const { booking_id } = await context.request.json();
+  const { booking_id } = await context.request.json() as { booking_id: number };
   if (!booking_id) return Response.json({ error: 'booking_id required' }, { status: 400 });
 
   const db = getDB(context.locals);

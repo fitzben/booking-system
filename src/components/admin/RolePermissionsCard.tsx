@@ -5,7 +5,14 @@ import {
 } from 'antd';
 import { SaveOutlined, ReloadOutlined, LockOutlined } from '@ant-design/icons';
 import { getRolePermissions, updateRolePermissions } from '../../lib/api';
-import { ROLE_LABELS, ADMIN_ROLE_KEY } from '../../lib/constants';
+import { useAdminAuth } from '../layout/AdminLayout';
+
+const ROLE_LABELS: Record<string, string> = {
+  superadmin:      'Super Admin',
+  booking_admin:   'Admin Booking',
+  inventory_admin: 'Admin Inventaris',
+  manager:         'Manager',
+};
 
 const { Text } = Typography;
 
@@ -29,6 +36,7 @@ const LEVEL_OPTIONS = [
 type PermissionMatrix = Record<string, Record<string, string>>;
 
 export default function RolePermissionsCard() {
+  const auth = useAdminAuth();
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
   const [matrix,    setMatrix]    = useState<PermissionMatrix>({});
@@ -38,10 +46,7 @@ export default function RolePermissionsCard() {
   const [isDirty,   setIsDirty]   = useState(false);
   const [messageApi, ctx] = message.useMessage();
 
-  const selfRole = typeof window !== 'undefined'
-    ? localStorage.getItem(ADMIN_ROLE_KEY) ?? ''
-    : '';
-  const isSuperAdmin = selfRole === 'superadmin';
+  const isSuperAdmin = auth?.userRole === 'superadmin';
 
   useEffect(() => {
     fetchPermissions();

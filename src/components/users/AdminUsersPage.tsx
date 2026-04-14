@@ -32,12 +32,14 @@ import {
   bulkDeleteUsers,
 } from "../../lib/api";
 import type { AdminUser } from "../../lib/api";
-import {
-  ADMIN_USERNAME_KEY,
-  ADMIN_ROLE_KEY,
-  ADMIN_ROLES,
-  ROLE_LABELS,
-} from "../../lib/constants";
+import { ADMIN_ROLES } from "../../lib/constants";
+
+const ROLE_LABELS: Record<string, string> = {
+  superadmin:      'Super Admin',
+  booking_admin:   'Admin Booking',
+  inventory_admin: 'Admin Inventaris',
+  manager:         'Manager',
+};
 import { fmtDate } from "../../lib/utils";
 import PageHeader from "../ui/PageHeader";
 

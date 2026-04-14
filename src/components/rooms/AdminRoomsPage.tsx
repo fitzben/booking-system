@@ -11,13 +11,14 @@ import {
   message,
   Tooltip,
   Tabs,
+  Spin,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined } from '@ant-design/icons';
 import AdminLayout, { useAdminAuth } from '../layout/AdminLayout';
 import { getRooms, createRoom, updateRoom, deleteRoom, getRoomPricing, setRoomPricing, bulkDeleteRooms } from '../../lib/api';
 import type { Room } from '../../lib/api';
-import { ROOM_TYPE_OPTIONS, ADMIN_ROLE_KEY, ROLE_PERMISSIONS, type AdminRole } from '../../lib/constants';
+import { ROOM_TYPE_OPTIONS } from '../../lib/constants';
 import { fmtPrice } from '../../lib/utils';
 import PageHeader from '../ui/PageHeader';
 import RoomForm, { roomToFormValues, rawToArray } from './RoomForm';
@@ -36,7 +37,6 @@ function AdminRoomsContent() {
   const auth = useAdminAuth();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const userRole = auth?.userRole || '';
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -71,8 +71,8 @@ function AdminRoomsContent() {
     fetchRooms();
   }, []);
 
-  const perms = userRole ? ROLE_PERMISSIONS[userRole as AdminRole] : null;
-  const canWrite = perms?.rooms === 'write';
+  const permissions = auth?.permissions ?? {};
+  const canWrite = permissions?.rooms === 'write';
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;

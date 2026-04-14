@@ -54,8 +54,6 @@ import {
   STATUS_LABELS,
   STATUS_COLORS,
   type BookingStatus,
-  ROLE_PERMISSIONS,
-  type AdminRole,
 } from "../../lib/constants";
 import { fmtDate, parseDetails } from "../../lib/utils";
 import StatusTag from "../ui/StatusTag";
@@ -155,8 +153,8 @@ function AdminBookingListContent() {
       .catch(() => undefined);
   }, [userRole]);
 
-  const perms = userRole ? ROLE_PERMISSIONS[userRole as AdminRole] : null;
-  const canWrite = perms?.bookings === "write";
+  const permissions = auth?.permissions ?? {};
+  const canWrite = permissions?.bookings === "write";
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
@@ -567,16 +565,24 @@ function AdminBookingListContent() {
         {/* Stats row — 6 cards */}
         <Row gutter={[12, 12]}>
           {[
-            { label: "Total Booking", value: stats.total, color: "#374151" },
-            { label: "Menunggu", value: stats.pending, color: "#d97706" },
+            {
+              label: "Total Booking",
+              value: stats?.total ?? 0,
+              color: "#374151",
+            },
+            { label: "Menunggu", value: stats?.pending ?? 0, color: "#d97706" },
             {
               label: "Dalam Proses",
-              value: stats.in_progress,
+              value: stats?.in_progress ?? 0,
               color: "#2563eb",
             },
-            { label: "Disetujui", value: stats.approved, color: "#059669" },
-            { label: "Selesai", value: stats.finished, color: "#0891b2" },
-            { label: "Ditolak", value: stats.rejected, color: "#dc2626" },
+            {
+              label: "Disetujui",
+              value: stats?.approved ?? 0,
+              color: "#059669",
+            },
+            { label: "Selesai", value: stats?.finished ?? 0, color: "#0891b2" },
+            { label: "Ditolak", value: stats?.rejected ?? 0, color: "#dc2626" },
           ].map(({ label, value, color }) => (
             <Col key={label} xs={12} sm={8} md={4}>
               <Card size="small" style={{ borderRadius: 10 }}>

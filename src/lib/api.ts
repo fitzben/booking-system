@@ -682,6 +682,13 @@ export async function updateRolePermissions(
   );
 }
 
+/** Fetch the full role→resource→level permission map from DB. */
+export async function getMyPermissions(): Promise<Record<string, Record<string, string>>> {
+  const data = await getRolePermissions();
+  // This is the full map — consumers filter by role themselves
+  return data.permissions;
+}
+
 export async function getPermissionVersion(): Promise<{ version: number }> {
   return handleResponse(
     await fetch('/api/admin/permission-version', { headers: JSON_HEADERS }),

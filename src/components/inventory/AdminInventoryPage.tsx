@@ -41,7 +41,6 @@ import {
   bulkDeleteInventory,
 } from "../../lib/api";
 import type { InventoryItem, Room } from "../../lib/api";
-import { ROLE_PERMISSIONS, type AdminRole } from "../../lib/constants";
 
 const { Text } = Typography;
 
@@ -80,7 +79,6 @@ function AdminInventoryContent() {
   const auth = useAdminAuth();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const userRole = auth?.userRole || "";
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [rooms, setRooms] = useState<Pick<Room, "id" | "name">[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,8 +110,8 @@ function AdminInventoryContent() {
     loadAll();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const perms = userRole ? ROLE_PERMISSIONS[userRole as AdminRole] : null;
-  const canWrite = perms?.inventory === "write";
+  const permissions = auth?.permissions ?? {};
+  const canWrite = permissions?.inventory === "write";
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;

@@ -30,11 +30,7 @@ import {
   PictureOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
-import {
-  ROLE_PERMISSIONS,
-  ROLE_LABELS,
-  type AdminRole,
-} from "../../lib/constants";
+import type { AdminRole } from "../../lib/constants";
 import {
   login,
   logout as apiLogout,
@@ -48,6 +44,7 @@ const { Title, Text } = Typography;
 export interface AdminAuthContextType {
   userRole: AdminRole | null;
   currentUsername: string;
+  permissions: Record<string, string>;
 }
 
 export const AdminAuthContext =
@@ -77,6 +74,7 @@ export default function AdminLayout({
   const [currentUsername, setCurrentUsername] = useState("");
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [userRole, setUserRole] = useState<AdminRole | null>(null);
+  const [permissions, setPermissions] = useState<Record<string, string>>({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [form] = Form.useForm();
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,13 +85,14 @@ export default function AdminLayout({
     fetch("/api/auth/me")
       .then((r) =>
         r.ok
-          ? (r.json() as Promise<{ username: string; role: AdminRole }>)
+          ? (r.json() as Promise<{ username: string; role: AdminRole; permissions: Record<string, string> }>)
           : null,
       )
       .then((data) => {
         if (data) {
           setCurrentUsername(data.username);
           setUserRole(data.role);
+          setPermissions(data.permissions ?? {});
           setAuthed(true);
         } else {
           setAuthed(false);
@@ -127,10 +126,18 @@ export default function AdminLayout({
     setLoginError("");
     try {
       // login() POST ke /api/auth/login — server buat session + set cookie HttpOnly
-      const data = await login(values.username, values.password);
-      setCurrentUsername(data.username);
-      setUserRole(data.role as AdminRole);
-      setAuthed(true);
+      await login(values.username, values.password);
+      // Fetch full session data (includes permissions) after login
+      const r = await fetch("/api/auth/me");
+      const data = r.ok
+        ? (await r.json() as { username: string; role: AdminRole; permissions: Record<string, string> })
+        : null;
+      if (data) {
+        setCurrentUsername(data.username);
+        setUserRole(data.role);
+        setPermissions(data.permissions ?? {});
+        setAuthed(true);
+      }
     } catch {
       setLoginError("Username atau password salah. Silakan coba lagi.");
     }
@@ -144,6 +151,7 @@ export default function AdminLayout({
     setAuthed(false);
     setCurrentUsername("");
     setUserRole(null);
+    setPermissions({});
     setShowTimeoutWarning(false);
     form.resetFields();
     setLoginError("");
@@ -217,21 +225,23 @@ export default function AdminLayout({
   // Fetch sekali saat mount — tanpa polling
   useEffect(() => {
     if (!authed || !userRole) return;
-    if (ROLE_PERMISSIONS[userRole as AdminRole]?.bookings === "none") return;
+    if (permissions?.bookings === "none") return;
 
     getBookingUnreadCount()
       .then((data) => setUnreadCount(data.unread_count))
       .catch(() => undefined);
-  }, [authed, userRole]);
+  }, [authed, userRole, permissions]);
 
-  const perms = userRole ? ROLE_PERMISSIONS[userRole as AdminRole] : null;
-
-  const canAccessBookings = perms?.bookings !== "none";
-  const canAccessRooms = perms?.rooms !== "none";
-  const canAccessInventory = perms?.inventory !== "none";
-  const canAccessUsers = perms?.users !== "none";
-  const canAccessReports = perms?.reports !== "none";
-  const canAccessSettings = perms?.settings !== "none";
+  const hasPerm = (resource: string) => {
+    const level = permissions?.[resource] ?? 'none';
+    return level !== 'none';
+  };
+  const canAccessBookings = hasPerm('bookings');
+  const canAccessRooms = hasPerm('rooms');
+  const canAccessInventory = hasPerm('inventory');
+  const canAccessUsers = hasPerm('users');
+  const canAccessReports = hasPerm('reports');
+  const canAccessSettings = hasPerm('settings');
 
   const navItems = [
     canAccessReports && {
@@ -383,7 +393,7 @@ export default function AdminLayout({
   }
 
   return (
-    <AdminAuthContext.Provider value={{ userRole, currentUsername }}>
+    <AdminAuthContext.Provider value={{ userRole, currentUsername, permissions }}>
       <StyleProvider ssrInline layer hashPriority="high">
         <ConfigProvider theme={MD_THEME}>
           <Layout style={{ minHeight: "100vh" }}>

@@ -1,7 +1,14 @@
 import type { APIContext } from "astro";
 import { getDB, getAdminUserByUsername } from "./db";
-import type { AdminRole } from "./constants";
-import { ROLE_PERMISSIONS } from "./constants";
+
+// Fallback used only when role_permissions row is missing in DB.
+// Superadmin is handled separately and never hits this table.
+const ROLE_PERMISSIONS_FALLBACK: Record<string, Record<string, string>> = {
+  superadmin:      { bookings: 'write', rooms: 'write', inventory: 'write', users: 'write', reports: 'read', settings: 'write' },
+  booking_admin:   { bookings: 'write', rooms: 'write', inventory: 'none',  users: 'none',  reports: 'none', settings: 'none'  },
+  inventory_admin: { bookings: 'read',  rooms: 'read',  inventory: 'write', users: 'none',  reports: 'none', settings: 'none'  },
+  manager:         { bookings: 'read',  rooms: 'read',  inventory: 'read',  users: 'none',  reports: 'read', settings: 'none'  },
+};
 
 type PermissionKey = 'bookings' | 'rooms' | 'inventory' | 'users' | 'reports' | 'settings';
 type PermissionLevel = 'read' | 'write';
@@ -46,9 +53,8 @@ async function getPermissionLevel(
     // DB tidak tersedia, fallback ke constants
   }
 
-  // Fallback ke constants
-  const staticPerms = ROLE_PERMISSIONS[role as AdminRole];
-  return staticPerms?.[resource] ?? 'none';
+  // Fallback ke static map
+  return ROLE_PERMISSIONS_FALLBACK[role]?.[resource] ?? 'none';
 }
 
 export async function checkAuth(

@@ -31,27 +31,6 @@ export const ADMIN_ROLES = [
 ] as const;
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
-// Permissions per role — apa saja yang boleh dilakukan
-export const ROLE_PERMISSIONS: Record<AdminRole, {
-  bookings:  'none' | 'read' | 'write';
-  inventory: 'none' | 'read' | 'write';
-  users:     'none' | 'read' | 'write';
-  reports:   'none' | 'read';
-  settings:  'none' | 'read' | 'write';
-  rooms:     'none' | 'read' | 'write';
-}> = {
-  superadmin:      { bookings: 'write', rooms: 'write', inventory: 'write', users: 'write', reports: 'read', settings: 'write' },
-  booking_admin:   { bookings: 'write', rooms: 'write', inventory: 'none',  users: 'none',  reports: 'none', settings: 'none'  },
-  inventory_admin: { bookings: 'read',  rooms: 'read',  inventory: 'write', users: 'none',  reports: 'none', settings: 'none'  },
-  manager:         { bookings: 'read',  rooms: 'read',  inventory: 'read',  users: 'none',  reports: 'read', settings: 'none'  },
-};
-
-export const ROLE_LABELS: Record<AdminRole, string> = {
-  superadmin:      'Super Admin',
-  booking_admin:   'Admin Booking',
-  inventory_admin: 'Admin Inventaris',
-  manager:         'Manager',
-};
 
 export const KEPERLUAN_OPTIONS = [
   'Photoshoot',
