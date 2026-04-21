@@ -15,7 +15,7 @@ import {
   LinkOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { getBookingDocuments, uploadBookingDocument, deleteBookingDocument } from '../../lib/api';
+import { getBookingDocuments, uploadBookingDocument, deleteBookingDocument, type BookingDocument } from '../../lib/api';
 
 const { Text } = Typography;
 

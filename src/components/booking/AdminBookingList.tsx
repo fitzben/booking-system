@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   Table,
   Tag,
@@ -33,6 +33,8 @@ import {
   DeleteOutlined,
   CalendarOutlined,
   CloseOutlined,
+  UnorderedListOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -59,6 +61,7 @@ import { fmtDate, parseDetails } from "../../lib/utils";
 import StatusTag from "../ui/StatusTag";
 import PageHeader from "../ui/PageHeader";
 import BookingFormSimple from "./BookingFormSimple";
+import BookingCalendarView from "./BookingCalendarView";
 import "./AdminBookingList.css";
 
 function AdminBookingListContent() {
@@ -77,9 +80,16 @@ function AdminBookingListContent() {
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-  const [hidePast, setHidePast] = useState(true);
+  const [dateFrom, setDateFrom] = useState<string>(() =>
+    dayjs().subtract(30, "day").format("YYYY-MM-DD"),
+  );
+  const [dateTo, setDateTo] = useState<string>(() =>
+    dayjs().format("YYYY-MM-DD"),
+  );
+  const [dates, setDates] = useState<
+    [dayjs.Dayjs | null, dayjs.Dayjs | null] | null
+  >(null);
+  const [hidePast, setHidePast] = useState(false);
 
   // Stats kept separate — always reflects all data
   const [stats, setStats] = useState({
@@ -100,6 +110,18 @@ function AdminBookingListContent() {
 
   // ── Create booking modal state ─────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false);
+
+  // ── View mode: tabel atau kalender ────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [calendarDate, setCalendarDate] = useState(() => dayjs());
+  const [calendarBookings, setCalendarBookings] = useState<Booking[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const calendarWeekRef = useRef<{ start: string; end: string } | null>(null);
+
+  // ── Alert bookings (fetch terpisah dari paginasi tabel) ───────────────────
+  const [alertBookings, setAlertBookings] = useState<Booking[]>([]);
+  // Tick tiap 30 detik — memaksa recompute alert berbasis waktu
+  const [tick, setTick] = useState(0);
 
   const fetchBookings = async (params?: {
     page?: number;
@@ -144,17 +166,113 @@ function AdminBookingListContent() {
     }
   };
 
+  // ── Fetch alert bookings (terpisah dari paginasi) ────────────────────────
+  const fetchAlertBookings = async () => {
+    try {
+      const today = dayjs().format("YYYY-MM-DD");
+      const from = dayjs().subtract(30, "day").format("YYYY-MM-DD");
+      const json = await getBookings({
+        page: 1,
+        page_size: 200,
+        status: "all",
+        date_from: from,
+        date_to: today,
+      });
+      setAlertBookings(json.data);
+    } catch {
+      /* silent */
+    }
+  };
+
+  // ── Fetch bookings untuk tampilan kalender (rolling window) ───────────────────
+  const fetchCalendarBookings = async (date: dayjs.Dayjs) => {
+    // We fetch a larger rolling window to support 1-day, 3-day, and 7-day calendar views gracefully without frequent refetches.
+    const from = date.subtract(14, "day").format("YYYY-MM-DD");
+    const to = date.add(21, "day").format("YYYY-MM-DD");
+    
+    // Jangan re-fetch jika rentangnya sudah meliputi rentang yang kita butuhkan
+    if (
+      calendarWeekRef.current?.start === from &&
+      calendarWeekRef.current?.end === to
+    )
+      return;
+    calendarWeekRef.current = { start: from, end: to };
+    setCalendarLoading(true);
+    try {
+      const json = await getBookings({
+        page: 1,
+        page_size: 500,
+        status: "all",
+        date_from: from,
+        date_to: to,
+      });
+      setCalendarBookings(json.data);
+    } catch {
+      /* silent */
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!userRole) return;
 
     fetchBookings();
+    fetchAlertBookings();
     getExpiringWarrantyItems(30)
       .then(setExpiringItems)
       .catch(() => undefined);
+
+    // Refresh alert bookings tiap 60 detik
+    const alertInterval = setInterval(fetchAlertBookings, 60_000);
+    // Tick tiap 30 detik untuk recompute alert berbasis waktu
+    const tickInterval = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => {
+      clearInterval(alertInterval);
+      clearInterval(tickInterval);
+    };
   }, [userRole]);
 
   const permissions = auth?.permissions ?? {};
   const canWrite = permissions?.bookings === "write";
+
+  // ── Alert: booking berakhir ≤15 menit lagi ────────────────────────────────
+  const endingSoonBookings = useMemo(() => {
+    const nowWib = dayjs().tz("Asia/Jakarta");
+    const todayStr = nowWib.format("YYYY-MM-DD");
+    return alertBookings.filter((b) => {
+      if (b.status === "finished" || b.status === "rejected") return false;
+      if (b.date !== todayStr) return false;
+      const details = parseDetails(b.details);
+      const endDate = (details?.date_end as string) ?? b.date;
+      const endDt = dayjs.tz(`${endDate} ${b.end_time}`, "Asia/Jakarta");
+      const diff = endDt.diff(nowWib, "minute");
+      return diff >= 0 && diff <= 15;
+    });
+  }, [alertBookings, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Alert: booking sudah melewati jadwal tapi belum Selesai ───────────────
+  const overdueBookings = useMemo(() => {
+    const nowWib = dayjs().tz("Asia/Jakarta");
+    return alertBookings.filter((b) => {
+      if (b.status === "finished" || b.status === "rejected") return false;
+      const details = parseDetails(b.details);
+      const endDate = (details?.date_end as string) ?? b.date;
+      const endDt = dayjs.tz(`${endDate} ${b.end_time}`, "Asia/Jakarta");
+      return endDt.isBefore(nowWib);
+    });
+  }, [alertBookings, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── View mode handlers ─────────────────────────────────────────────────────
+  function handleViewModeChange(mode: "table" | "calendar") {
+    setViewMode(mode);
+    if (mode === "calendar") fetchCalendarBookings(calendarDate);
+  }
+
+  function handleCalendarDateChange(d: dayjs.Dayjs) {
+    setCalendarDate(d);
+    fetchCalendarBookings(d);
+  }
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
@@ -545,20 +663,143 @@ function AdminBookingListContent() {
             }
           />
         )}
+
+        {/* ── Alert 1a: Booking berakhir ≤15 menit ─────────────────────── */}
+        {endingSoonBookings.length > 0 && (
+          <Alert
+            type="warning"
+            icon={<ClockCircleOutlined />}
+            showIcon
+            message={
+              <strong>
+                {endingSoonBookings.length} booking akan berakhir dalam ≤15
+                menit — segera hubungi penyewa!
+              </strong>
+            }
+            description={
+              <Space wrap size={6} style={{ marginTop: 6 }}>
+                {endingSoonBookings.map((b) => (
+                  <a
+                    key={b.id}
+                    href={`/admin/${b.id}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: "#fef3c7",
+                      border: "1px solid #fcd34d",
+                      borderRadius: 6,
+                      padding: "3px 10px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#92400e",
+                      textDecoration: "none",
+                    }}
+                  >
+                    #{b.booking_code} · {b.applicant_name} · berakhir{" "}
+                    {b.end_time}
+                  </a>
+                ))}
+              </Space>
+            }
+            style={{ borderColor: "#fcd34d", background: "#fffbeb" }}
+          />
+        )}
+
+        {/* ── Alert 1b: Booking melewati jadwal tapi belum Selesai ─────── */}
+        {overdueBookings.length > 0 && (
+          <Alert
+            type="error"
+            icon={<WarningOutlined />}
+            showIcon
+            message={
+              <strong>
+                {overdueBookings.length} booking melewati jadwal & belum
+                ditandai Selesai
+              </strong>
+            }
+            description={
+              <Space wrap size={6} style={{ marginTop: 6 }}>
+                {overdueBookings.map((b) => (
+                  <a
+                    key={b.id}
+                    href={`/admin/${b.id}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: "#fee2e2",
+                      border: "1px solid #fca5a5",
+                      borderRadius: 6,
+                      padding: "3px 10px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#991b1b",
+                      textDecoration: "none",
+                    }}
+                  >
+                    #{b.booking_code} · {b.applicant_name} · {b.date}{" "}
+                    {b.end_time}
+                  </a>
+                ))}
+              </Space>
+            }
+            style={{ borderColor: "#fca5a5", background: "#fff1f2" }}
+          />
+        )}
+
         <PageHeader
           title="Daftar Booking"
           subtitle="Kelola semua permohonan peminjaman ruangan"
           extra={
-            canWrite ? (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setCreateOpen(true)}
-                style={{ color: "#fff" }}
-              >
-                Tambah Booking
-              </Button>
-            ) : undefined
+            <Space size={8}>
+              <Space.Compact>
+                <Button
+                  size="small"
+                  icon={<UnorderedListOutlined />}
+                  onClick={() => handleViewModeChange("table")}
+                  style={
+                    viewMode === "table"
+                      ? {
+                          background: "#d97706",
+                          borderColor: "#d97706",
+                          color: "#fff",
+                          fontWeight: 600,
+                        }
+                      : { color: "#6b7280" }
+                  }
+                >
+                  Tabel
+                </Button>
+                <Button
+                  size="small"
+                  icon={<CalendarOutlined />}
+                  onClick={() => handleViewModeChange("calendar")}
+                  style={
+                    viewMode === "calendar"
+                      ? {
+                          background: "#d97706",
+                          borderColor: "#d97706",
+                          color: "#fff",
+                          fontWeight: 600,
+                        }
+                      : { color: "#6b7280" }
+                  }
+                >
+                  Kalender
+                </Button>
+              </Space.Compact>
+              {canWrite && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => setCreateOpen(true)}
+                  style={{ color: "#fff" }}
+                >
+                  Tambah Booking
+                </Button>
+              )}
+            </Space>
           }
         />
 
@@ -726,119 +967,127 @@ function AdminBookingListContent() {
             );
           })()}
 
-        <Card
-          style={{ borderRadius: 12 }}
-          styles={{ body: { padding: "0" } }}
-          title={
-            <div style={{ padding: "16px 0" }}>
-              {/* Row 1: Status filter + Date presets */}
-              <Row gutter={[8, 8]} align="middle" style={{ marginBottom: 10 }}>
-                <Col flex="none">
-                  <Select
-                    value={statusFilter}
-                    onChange={handleStatusChange}
-                    style={{ width: 160 }}
-                    options={[
-                      { value: "all", label: "Semua Status" },
-                      ...BOOKING_STATUSES.map((s) => ({
-                        value: s,
-                        label: STATUS_LABELS[s],
-                      })),
-                    ]}
-                  />
-                </Col>
+        {viewMode === "table" && (
+          <Card
+            style={{ borderRadius: 12 }}
+            styles={{ body: { padding: "0" } }}
+            title={
+              <div style={{ padding: "16px 0" }}>
+                {/* Row 1: Status filter + Date presets */}
+                <Row
+                  gutter={[8, 8]}
+                  align="middle"
+                  style={{ marginBottom: 10 }}
+                >
+                  <Col flex="none">
+                    <Select
+                      value={statusFilter}
+                      onChange={handleStatusChange}
+                      style={{ width: 160 }}
+                      options={[
+                        { value: "all", label: "Semua Status" },
+                        ...BOOKING_STATUSES.map((s) => ({
+                          value: s,
+                          label: STATUS_LABELS[s],
+                        })),
+                      ]}
+                    />
+                  </Col>
 
-                <Col flex="none">
-                  <div
-                    style={{
-                      width: 1,
-                      height: 20,
-                      background: "#e5e7eb",
-                      margin: "0 4px",
-                    }}
-                  />
-                </Col>
+                  <Col flex="none">
+                    <div
+                      style={{
+                        width: 1,
+                        height: 20,
+                        background: "#e5e7eb",
+                        margin: "0 4px",
+                      }}
+                    />
+                  </Col>
 
-                <Col flex="none">
-                  <Space size={8}>
-                    {[
-                      {
-                        label: "Hari Ini",
-                        getValue: () =>
-                          [dayjs(), dayjs()] as [
-                            ReturnType<typeof dayjs>,
-                            ReturnType<typeof dayjs>,
-                          ],
-                      },
-                      {
-                        label: "Minggu Ini",
-                        getValue: () =>
-                          [dayjs().startOf("week"), dayjs().endOf("week")] as [
-                            ReturnType<typeof dayjs>,
-                            ReturnType<typeof dayjs>,
-                          ],
-                      },
-                      {
-                        label: "Bulan Ini",
-                        getValue: () =>
-                          [
-                            dayjs().startOf("month"),
-                            dayjs().endOf("month"),
-                          ] as [
-                            ReturnType<typeof dayjs>,
-                            ReturnType<typeof dayjs>,
-                          ],
-                      },
-                    ].map(({ label, getValue }) => {
-                      const [s, e] = getValue();
-                      const isActive =
-                        dateFrom === s.format("YYYY-MM-DD") &&
-                        dateTo === e.format("YYYY-MM-DD");
-                      return (
-                        <Button
-                          key={label}
-                          size="small"
-                          onClick={() => {
-                            if (isActive) {
-                              setDateFrom("");
-                              setDateTo("");
-                              setPage(1);
-                              fetchBookings({
-                                dateFrom: "",
-                                dateTo: "",
-                                page: 1,
-                              });
-                            } else {
-                              const from = s.format("YYYY-MM-DD");
-                              const to = e.format("YYYY-MM-DD");
-                              setDateFrom(from);
-                              setDateTo(to);
-                              setPage(1);
-                              fetchBookings({
-                                dateFrom: from,
-                                dateTo: to,
-                                page: 1,
-                              });
+                  <Col flex="none">
+                    <Space size={8}>
+                      {[
+                        {
+                          label: "Hari Ini",
+                          getValue: () =>
+                            [dayjs(), dayjs()] as [
+                              ReturnType<typeof dayjs>,
+                              ReturnType<typeof dayjs>,
+                            ],
+                        },
+                        {
+                          label: "Minggu Ini",
+                          getValue: () =>
+                            [
+                              dayjs().startOf("week"),
+                              dayjs().endOf("week"),
+                            ] as [
+                              ReturnType<typeof dayjs>,
+                              ReturnType<typeof dayjs>,
+                            ],
+                        },
+                        {
+                          label: "Bulan Ini",
+                          getValue: () =>
+                            [
+                              dayjs().startOf("month"),
+                              dayjs().endOf("month"),
+                            ] as [
+                              ReturnType<typeof dayjs>,
+                              ReturnType<typeof dayjs>,
+                            ],
+                        },
+                      ].map(({ label, getValue }) => {
+                        const [s, e] = getValue();
+                        const isActive =
+                          dateFrom === s.format("YYYY-MM-DD") &&
+                          dateTo === e.format("YYYY-MM-DD");
+                        return (
+                          <Button
+                            key={label}
+                            size="small"
+                            onClick={() => {
+                              if (isActive) {
+                                setDateFrom("");
+                                setDateTo("");
+                                setPage(1);
+                                fetchBookings({
+                                  dateFrom: "",
+                                  dateTo: "",
+                                  page: 1,
+                                });
+                              } else {
+                                const from = s.format("YYYY-MM-DD");
+                                const to = e.format("YYYY-MM-DD");
+                                setDateFrom(from);
+                                setDateTo(to);
+                                setPage(1);
+                                fetchBookings({
+                                  dateFrom: from,
+                                  dateTo: to,
+                                  page: 1,
+                                });
+                              }
+                            }}
+                            style={
+                              isActive
+                                ? {
+                                    background: "#d97706",
+                                    borderColor: "#d97706",
+                                    color: "#fff",
+                                    fontWeight: 600,
+                                  }
+                                : {
+                                    color: "#6b7280",
+                                  }
                             }
-                          }}
-                          style={
-                            isActive
-                              ? {
-                                  background: "#d97706",
-                                  borderColor: "#d97706",
-                                  color: "#fff",
-                                  fontWeight: 600,
-                                }
-                              : {
-                                  color: "#6b7280",
-                                }
-                          }
-                        >
-                          {label}
-                        </Button>
-                      );
-                    })}
-                    {/* <Button
+                          >
+                            {label}
+                          </Button>
+                        );
+                      })}
+                      {/* <Button
                       size="small"
                       type={hidePast ? "primary" : "default"}
                       ghost={hidePast}
@@ -852,192 +1101,222 @@ function AdminBookingListContent() {
                     >
                       {hidePast ? "📅 Sembunyikan Lewat" : "Tampilkan semua"}
                     </Button> */}
-                  </Space>
-                </Col>
+                    </Space>
+                  </Col>
 
-                {/* Active date indicator chip */}
-                {(dateFrom || dateTo) && (
-                  <Col flex="none">
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        background: "#fffbeb",
-                        border: "1px solid #fde68a",
-                        borderRadius: 6,
-                        padding: "2px 10px",
-                        fontSize: 12,
-                        color: "#92400e",
-                      }}
-                    >
-                      <CalendarOutlined style={{ fontSize: 11 }} />
-                      <span>
-                        {dateFrom ? dayjs(dateFrom).format("DD MMM") : "—"}
-                        {" – "}
-                        {dateTo ? dayjs(dateTo).format("DD MMM YYYY") : "—"}
-                      </span>
-                      <CloseOutlined
+                  {/* Active date indicator chip */}
+                  {(dateFrom || dateTo) && (
+                    <Col flex="none">
+                      <div
                         style={{
-                          fontSize: 10,
-                          cursor: "pointer",
-                          marginLeft: 2,
-                          color: "#b45309",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          background: "#fffbeb",
+                          border: "1px solid #fde68a",
+                          borderRadius: 6,
+                          padding: "2px 10px",
+                          fontSize: 12,
+                          color: "#92400e",
                         }}
-                        onClick={() => {
+                      >
+                        <CalendarOutlined style={{ fontSize: 11 }} />
+                        <span>
+                          {dateFrom ? dayjs(dateFrom).format("DD MMM") : "—"}
+                          {" – "}
+                          {dateTo ? dayjs(dateTo).format("DD MMM YYYY") : "—"}
+                        </span>
+                        <CloseOutlined
+                          style={{
+                            fontSize: 10,
+                            cursor: "pointer",
+                            marginLeft: 2,
+                            color: "#b45309",
+                          }}
+                          onClick={() => {
+                            setDateFrom("");
+                            setDateTo("");
+                            setPage(1);
+                            fetchBookings({
+                              dateFrom: "",
+                              dateTo: "",
+                              page: 1,
+                            });
+                          }}
+                        />
+                      </div>
+                    </Col>
+                  )}
+                </Row>
+
+                {/* Row 2: Range picker + Search + Refresh */}
+                <Row gutter={[8, 8]} align="middle">
+                  <Col flex="none">
+                    <DatePicker.RangePicker
+                      size="small"
+                      format="DD MMM YYYY"
+                      value={
+                        dateFrom && dateTo
+                          ? [dayjs(dateFrom), dayjs(dateTo)]
+                          : null
+                      }
+                      onCalendarChange={(val) => setDates(val)}
+                      disabledDate={(current) => {
+                        if (!dates || !dates[0] || dates[1]) return false;
+                        const diff = Math.abs(current.diff(dates[0], "day"));
+                        return diff > 30;
+                      }}
+                      onOpenChange={(open) => {
+                        if (!open) setDates(null);
+                      }}
+                      onChange={(values) => {
+                        if (!values || !values[0] || !values[1]) {
                           setDateFrom("");
                           setDateTo("");
                           setPage(1);
                           fetchBookings({ dateFrom: "", dateTo: "", page: 1 });
-                        }}
-                      />
-                    </div>
+                        } else {
+                          const from = values[0].format("YYYY-MM-DD");
+                          const to = values[1].format("YYYY-MM-DD");
+                          setDateFrom(from);
+                          setDateTo(to);
+                          setPage(1);
+                          fetchBookings({
+                            dateFrom: from,
+                            dateTo: to,
+                            page: 1,
+                          });
+                        }
+                      }}
+                      allowClear
+                      placeholder={["Dari tanggal", "Sampai tanggal"]}
+                      style={{ width: 260 }}
+                    />
                   </Col>
-                )}
-              </Row>
 
-              {/* Row 2: Range picker + Search + Refresh */}
-              <Row gutter={[8, 8]} align="middle">
-                <Col flex="none">
-                  <DatePicker.RangePicker
-                    size="small"
-                    format="DD MMM YYYY"
-                    value={
-                      dateFrom && dateTo
-                        ? [dayjs(dateFrom), dayjs(dateTo)]
-                        : null
-                    }
-                    onChange={(values) => {
-                      if (!values || !values[0] || !values[1]) {
-                        setDateFrom("");
-                        setDateTo("");
-                        setPage(1);
-                        fetchBookings({ dateFrom: "", dateTo: "", page: 1 });
-                      } else {
-                        const from = values[0].format("YYYY-MM-DD");
-                        const to = values[1].format("YYYY-MM-DD");
-                        setDateFrom(from);
-                        setDateTo(to);
-                        setPage(1);
-                        fetchBookings({ dateFrom: from, dateTo: to, page: 1 });
-                      }
-                    }}
-                    allowClear
-                    placeholder={["Dari tanggal", "Sampai tanggal"]}
-                    style={{ width: 260 }}
-                  />
-                </Col>
+                  <Col flex={1}>
+                    <Input
+                      placeholder="Cari nama, keperluan, atau kode booking..."
+                      prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
+                      value={search}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      allowClear
+                      onClear={() => handleSearchChange("")}
+                    />
+                  </Col>
 
-                <Col flex={1}>
-                  <Input
-                    placeholder="Cari nama, keperluan, atau kode booking..."
-                    prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
-                    value={search}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    allowClear
-                    onClear={() => handleSearchChange("")}
-                  />
-                </Col>
-
-                <Col flex="none">
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={() => fetchBookings()}
-                    loading={loading}
-                  >
-                    Refresh
-                  </Button>
-                </Col>
-              </Row>
-            </div>
-          }
-        >
-          {canWrite && selectedIds.length > 0 && (
-            <div
-              style={{
-                padding: "12px 16px",
-                background: "#fffbf0",
-                borderBottom: "1px solid #fde68a",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 13, color: "#92400e", fontWeight: 500 }}>
-                {selectedIds.length} booking dipilih
-              </span>
-              <Space>
-                <Button size="small" onClick={() => setSelectedIds([])}>
-                  Batal Pilih
-                </Button>
-                <Popconfirm
-                  title="Hapus Booking Terpilih"
-                  description={`Yakin ingin menghapus ${selectedIds.length} booking? Tindakan ini tidak dapat dibatalkan.`}
-                  onConfirm={handleBulkDelete}
-                  okText="Hapus Semua"
-                  cancelText="Batal"
-                  okButtonProps={{ danger: true, loading: bulkDeleting }}
+                  <Col flex="none">
+                    <Button
+                      icon={<ReloadOutlined />}
+                      onClick={() => fetchBookings()}
+                      loading={loading}
+                    >
+                      Refresh
+                    </Button>
+                  </Col>
+                </Row>
+              </div>
+            }
+          >
+            {canWrite && selectedIds.length > 0 && (
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: "#fffbf0",
+                  borderBottom: "1px solid #fde68a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <span
+                  style={{ fontSize: 13, color: "#92400e", fontWeight: 500 }}
                 >
-                  <Button
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    loading={bulkDeleting}
-                  >
-                    Hapus {selectedIds.length} Booking
+                  {selectedIds.length} booking dipilih
+                </span>
+                <Space>
+                  <Button size="small" onClick={() => setSelectedIds([])}>
+                    Batal Pilih
                   </Button>
-                </Popconfirm>
-              </Space>
-            </div>
-          )}
-          <Table
-            dataSource={bookings}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            rowSelection={canWrite ? rowSelection : undefined}
-            onChange={handleTableChange}
-            style={{ borderRadius: 0 }}
-            className="booking-table"
-            pagination={{
-              current: page,
-              pageSize: pageSize,
-              total: total,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
-              showTotal: (t, range) =>
-                `${range[0]}–${range[1]} dari ${t} booking`,
-              style: {
-                padding: "12px 16px",
-                margin: 0,
-                borderTop: "1px solid #f0f0f0",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-end",
-              },
-            }}
-            scroll={{ x: "max-content" }}
-            onRow={(record) => ({
-              style: {
-                cursor: "pointer",
-                background: !readIds.has(record.id) ? "#fffbf0" : undefined,
-                fontWeight: !readIds.has(record.id) ? 500 : undefined,
-              },
-              onClick: async () => {
-                if (!readIds.has(record.id)) {
-                  markBookingRead(record.id).catch(() => undefined);
-                  setReadIds((prev) => new Set([...prev, record.id]));
-                  setStats((prev) => ({
-                    ...prev,
-                    unread_count: Math.max(0, prev.unread_count - 1),
-                  }));
-                }
-                window.location.href = `/admin/${record.id}`;
-              },
-            })}
-          />
-        </Card>
+                  <Popconfirm
+                    title="Hapus Booking Terpilih"
+                    description={`Yakin ingin menghapus ${selectedIds.length} booking? Tindakan ini tidak dapat dibatalkan.`}
+                    onConfirm={handleBulkDelete}
+                    okText="Hapus Semua"
+                    cancelText="Batal"
+                    okButtonProps={{ danger: true, loading: bulkDeleting }}
+                  >
+                    <Button
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      loading={bulkDeleting}
+                    >
+                      Hapus {selectedIds.length} Booking
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              </div>
+            )}
+            <Table
+              dataSource={bookings}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+              rowSelection={canWrite ? rowSelection : undefined}
+              onChange={handleTableChange}
+              style={{ borderRadius: 0 }}
+              className="booking-table"
+              pagination={{
+                current: page,
+                pageSize: pageSize,
+                total: total,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "20", "50", "100"],
+                showTotal: (t, range) =>
+                  `${range[0]}–${range[1]} dari ${t} booking`,
+                style: {
+                  padding: "12px 16px",
+                  margin: 0,
+                  borderTop: "1px solid #f0f0f0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                },
+              }}
+              scroll={{ x: "max-content" }}
+              onRow={(record) => ({
+                style: {
+                  cursor: "pointer",
+                  background: !readIds.has(record.id) ? "#fffbf0" : undefined,
+                  fontWeight: !readIds.has(record.id) ? 500 : undefined,
+                },
+                onClick: async () => {
+                  if (!readIds.has(record.id)) {
+                    markBookingRead(record.id).catch(() => undefined);
+                    setReadIds((prev) => new Set([...prev, record.id]));
+                    setStats((prev) => ({
+                      ...prev,
+                      unread_count: Math.max(0, prev.unread_count - 1),
+                    }));
+                  }
+                  window.location.href = `/admin/${record.id}`;
+                },
+              })}
+            />
+          </Card>
+        )}
+        {viewMode === "calendar" && (
+          <Card style={{ borderRadius: 12 }} styles={{ body: { padding: 0 } }}>
+            <BookingCalendarView
+              bookings={calendarBookings}
+              date={calendarDate}
+              onDateChange={handleCalendarDateChange}
+              loading={calendarLoading}
+            />
+          </Card>
+        )}
       </Space>
 
       {/* ── Create Booking Modal ───────────────────────────────────────────── */}

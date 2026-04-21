@@ -22,6 +22,17 @@ export const PUT: APIRoute = async (context) => {
     return [];
   }
 
+  // Helper: coerce default_equipment array of { name, quantity } objects
+  function toEquipmentArray(v: unknown): { name: string; quantity: number }[] {
+    if (!Array.isArray(v)) return [];
+    return (v as unknown[]).flatMap((item) => {
+      if (typeof item === 'object' && item !== null && 'name' in item) {
+        return [{ name: String((item as Record<string, unknown>).name), quantity: Number((item as Record<string, unknown>).quantity) || 1 }];
+      }
+      return [];
+    });
+  }
+
   const actor = await getAuthUser(context);
   const db = getDB(context.locals);
 
@@ -45,6 +56,7 @@ export const PUT: APIRoute = async (context) => {
   if (body.images !== undefined)               data.images               = toStringArray(body.images);
   if (body.facilities !== undefined)           data.facilities           = toStringArray(body.facilities);
   if (body.equipment_highlights !== undefined) data.equipment_highlights = toStringArray(body.equipment_highlights);
+  if (body.default_equipment !== undefined)    data.default_equipment    = toEquipmentArray(body.default_equipment);
 
   // Stamp updated_by
   data.updated_by = actor?.username ?? null;

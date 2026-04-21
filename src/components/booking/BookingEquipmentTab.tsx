@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Form,
   Input,
@@ -19,33 +19,10 @@ import {
   SaveOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import type { EquipmentCondition } from '../../lib/forms';
 
 const { Text } = Typography;
-
-// ── Mock equipment list ───────────────────────────────────────────────────────
-// TODO: replace with real equipment master data from API
-
-const EQUIPMENT_OPTIONS = [
-  'Kamera DSLR Canon 5D',
-  'Kamera DSLR Nikon D850',
-  'Tripod Heavy-Duty',
-  'Lighting LED Panel (Set)',
-  'Reflektor 5-in-1',
-  'Softbox 60×90cm',
-  'Backdrop Putih',
-  'Backdrop Hitam',
-  'Microphone Boom',
-  'Wireless Microphone',
-  'Sound Mixer',
-  'Monitor Preview 32"',
-  'HDMI Cable (5m)',
-  'Extension Cord (10m)',
-  'Proyektor',
-  'Layar Proyektor',
-  'Whiteboard',
-  'AC Remote',
-];
 
 const CONDITION_OPTIONS: { label: string; value: EquipmentCondition; color: string }[] = [
   { label: 'Baik', value: 'Baik', color: 'success' },
@@ -84,13 +61,16 @@ const HEADER_STYLE: React.CSSProperties = {
 
 interface BookingEquipmentTabProps {
   bookingId: number;
+  startTime: string;
+  endTime: string;
+  defaultEquipment?: { name: string; quantity: number }[];
 }
 
 interface EquipmentRowValues {
   equipment: string;
   quantity: number;
-  time_out?: unknown;   // Dayjs from TimePicker
-  time_in?: unknown;
+  time_in?: unknown;    // Dayjs from TimePicker
+  time_out?: unknown;
   condition_out: EquipmentCondition;
   condition_in: EquipmentCondition;
   notes?: string;
@@ -100,10 +80,27 @@ interface EquipmentFormValues {
   entries: EquipmentRowValues[];
 }
 
-export default function BookingEquipmentTab({ bookingId }: BookingEquipmentTabProps) {
+export default function BookingEquipmentTab({ bookingId, startTime, endTime, defaultEquipment }: BookingEquipmentTabProps) {
   const [form] = Form.useForm<EquipmentFormValues>();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Pre-populate entries from room's default equipment (only if form is still empty)
+  useEffect(() => {
+    if (!defaultEquipment?.length) return;
+    const current = form.getFieldValue('entries') as EquipmentRowValues[] | undefined;
+    if (current?.length) return; // don't overwrite manual changes
+    form.setFieldsValue({
+      entries: defaultEquipment.map((e) => ({
+        equipment: e.name,
+        quantity: e.quantity || 1,
+        time_in: dayjs(startTime, 'HH:mm'),
+        time_out: dayjs(endTime, 'HH:mm'),
+        condition_out: 'Baik' as EquipmentCondition,
+        condition_in: 'Baik' as EquipmentCondition,
+      })),
+    });
+  }, [defaultEquipment]);
 
   const handleSave = async () => {
     let values: EquipmentFormValues;
@@ -140,8 +137,8 @@ export default function BookingEquipmentTab({ bookingId }: BookingEquipmentTabPr
       >
         <span style={HEADER_STYLE}>Equipment</span>
         <span style={HEADER_STYLE}>Qty</span>
-        <span style={HEADER_STYLE}>Time Out</span>
         <span style={HEADER_STYLE}>Time In</span>
+        <span style={HEADER_STYLE}>Time Out</span>
         <span style={HEADER_STYLE}>Kondisi Out</span>
         <span style={HEADER_STYLE}>Kondisi In</span>
         <span style={HEADER_STYLE}>Catatan</span>
@@ -182,13 +179,7 @@ export default function BookingEquipmentTab({ bookingId }: BookingEquipmentTabPr
                   style={{ marginBottom: 0 }}
                   rules={[{ required: true, message: 'Wajib' }]}
                 >
-                  <Select
-                    showSearch
-                    placeholder="Nama equipment"
-                    optionFilterProp="label"
-                    options={EQUIPMENT_OPTIONS.map((e) => ({ value: e, label: e }))}
-                    dropdownStyle={{ minWidth: 260 }}
-                  />
+                  <Input placeholder="Nama equipment" />
                 </Form.Item>
 
                 {/* Quantity */}
@@ -201,14 +192,14 @@ export default function BookingEquipmentTab({ bookingId }: BookingEquipmentTabPr
                   <InputNumber min={1} style={{ width: '100%' }} />
                 </Form.Item>
 
+                {/* Time in */}
+                <Form.Item name={[name, 'time_in']} style={{ marginBottom: 0 }}>
+                  <TimePicker format="HH:mm" placeholder="Masuk" minuteStep={5} style={{ width: '100%' }} />
+                </Form.Item>
+
                 {/* Time out */}
                 <Form.Item name={[name, 'time_out']} style={{ marginBottom: 0 }}>
                   <TimePicker format="HH:mm" placeholder="Keluar" minuteStep={5} style={{ width: '100%' }} />
-                </Form.Item>
-
-                {/* Time in */}
-                <Form.Item name={[name, 'time_in']} style={{ marginBottom: 0 }}>
-                  <TimePicker format="HH:mm" placeholder="Kembali" minuteStep={5} style={{ width: '100%' }} />
                 </Form.Item>
 
                 {/* Condition out */}
@@ -251,7 +242,13 @@ export default function BookingEquipmentTab({ bookingId }: BookingEquipmentTabPr
 
             <Button
               type="dashed"
-              onClick={() => add()}
+              onClick={() => add({
+                quantity: 1,
+                time_in: dayjs(startTime, 'HH:mm'),
+                time_out: dayjs(endTime, 'HH:mm'),
+                condition_out: 'Baik',
+                condition_in: 'Baik',
+              })}
               icon={<PlusOutlined />}
               style={{ width: '100%', marginTop: 12 }}
             >

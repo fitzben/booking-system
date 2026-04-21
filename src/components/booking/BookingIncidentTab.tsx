@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Form,
   Input,
@@ -14,46 +14,52 @@ import {
   Empty,
   Row,
   Col,
-} from 'antd';
+} from "antd";
 import {
   PlusOutlined,
   DeleteOutlined,
   SaveOutlined,
   WarningOutlined,
-} from '@ant-design/icons';
-import type { IncidentType } from '../../lib/forms';
-import type { Dayjs } from 'dayjs';
+} from "@ant-design/icons";
+import type { IncidentType } from "../../lib/forms";
+import dayjs, { type Dayjs } from "dayjs";
 
 const { Text } = Typography;
 
 // ── IDR helpers ───────────────────────────────────────────────────────────────
 
-const idrFormatter = (v?: string | number) => `${v ?? ''}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-const idrParser = (v?: string) => Number((v ?? '').replace(/\./g, '')) as unknown as number;
+const idrFormatter = (v?: string | number) =>
+  `${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+const idrParser = (v?: string) =>
+  Number((v ?? "").replace(/\./g, "")) as unknown as number;
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
-const INCIDENT_TYPE_OPTIONS: { label: string; value: IncidentType; color: string }[] = [
-  { label: 'Kerusakan', value: 'Kerusakan', color: 'warning' },
-  { label: 'Kehilangan', value: 'Kehilangan', color: 'error' },
+const INCIDENT_TYPE_OPTIONS: {
+  label: string;
+  value: IncidentType;
+  color: string;
+}[] = [
+  { label: "Kerusakan", value: "Kerusakan", color: "warning" },
+  { label: "Kehilangan", value: "Kehilangan", color: "error" },
 ];
 
 // Suggested values for "room / equipment involved" — free-text input + suggestions
 const INVOLVED_SUGGESTIONS = [
-  'Studio A',
-  'Studio B',
-  'Carbon (Function Room)',
-  'Ruang Meeting',
-  'Kamera DSLR',
-  'Tripod',
-  'Lighting Set',
-  'Proyektor',
-  'Microphone',
-  'Backdrop',
-  'Meja',
-  'Kursi',
-  'AC Unit',
-  'Lainnya',
+  "Studio A",
+  "Studio B",
+  "Carbon (Function Room)",
+  "Ruang Meeting",
+  "Kamera DSLR",
+  "Tripod",
+  "Lighting Set",
+  "Proyektor",
+  "Microphone",
+  "Backdrop",
+  "Meja",
+  "Kursi",
+  "AC Unit",
+  "Lainnya",
 ];
 
 // ── Individual incident card ──────────────────────────────────────────────────
@@ -62,16 +68,26 @@ interface IncidentCardProps {
   name: number;
   onRemove: () => void;
   index: number;
+  disabledDate?: (d: Dayjs) => boolean;
 }
 
-function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
+function IncidentCard({
+  name,
+  onRemove,
+  index,
+  disabledDate,
+}: IncidentCardProps) {
   return (
     <Card
       size="small"
-      style={{ borderRadius: 10, marginBottom: 12, borderLeft: '3px solid #f59e0b' }}
+      style={{
+        borderRadius: 10,
+        marginBottom: 12,
+        borderLeft: "3px solid #f59e0b",
+      }}
       title={
         <Space>
-          <WarningOutlined style={{ color: '#f59e0b' }} />
+          <WarningOutlined style={{ color: "#f59e0b" }} />
           <Text style={{ fontSize: 13 }}>Insiden #{index + 1}</Text>
         </Space>
       }
@@ -91,28 +107,37 @@ function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
         {/* Date */}
         <Col xs={24} sm={8} md={6}>
           <Form.Item
-            name={[name, 'date']}
+            name={[name, "date"]}
             label="Tanggal Kejadian"
-            rules={[{ required: true, message: 'Wajib diisi' }]}
+            rules={[{ required: true, message: "Wajib diisi" }]}
             style={{ marginBottom: 12 }}
           >
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Pilih tanggal" />
+            <DatePicker
+              style={{ width: "100%" }}
+              format="DD MMMM YYYY"
+              placeholder="Pilih tanggal"
+              disabledDate={disabledDate}
+            />
           </Form.Item>
         </Col>
 
         {/* Type */}
         <Col xs={24} sm={8} md={5}>
           <Form.Item
-            name={[name, 'type']}
+            name={[name, "type"]}
             label="Tipe Insiden"
-            rules={[{ required: true, message: 'Wajib diisi' }]}
+            rules={[{ required: true, message: "Wajib diisi" }]}
             style={{ marginBottom: 12 }}
           >
             <Select
               placeholder="Pilih tipe"
               options={INCIDENT_TYPE_OPTIONS.map((o) => ({
                 value: o.value,
-                label: <Tag color={o.color} style={{ margin: 0 }}>{o.label}</Tag>,
+                label: (
+                  <Tag color={o.color} style={{ margin: 0 }}>
+                    {o.label}
+                  </Tag>
+                ),
               }))}
             />
           </Form.Item>
@@ -121,16 +146,19 @@ function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
         {/* Involved room / equipment */}
         <Col xs={24} sm={8} md={7}>
           <Form.Item
-            name={[name, 'involved']}
+            name={[name, "involved"]}
             label="Ruangan / Barang Terlibat"
-            rules={[{ required: true, message: 'Wajib diisi' }]}
+            rules={[{ required: true, message: "Wajib diisi" }]}
             style={{ marginBottom: 12 }}
           >
             <Select
               showSearch
               mode="tags"
               placeholder="Pilih atau ketik nama ruangan / barang"
-              options={INVOLVED_SUGGESTIONS.map((s) => ({ value: s, label: s }))}
+              options={INVOLVED_SUGGESTIONS.map((s) => ({
+                value: s,
+                label: s,
+              }))}
               maxTagCount={2}
             />
           </Form.Item>
@@ -139,7 +167,7 @@ function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
         {/* Estimated cost */}
         <Col xs={24} sm={8} md={6}>
           <Form.Item
-            name={[name, 'estimated_cost']}
+            name={[name, "estimated_cost"]}
             label="Estimasi Kerugian (Rp)"
             tooltip="Opsional — isi jika ada perkiraan biaya penggantian / perbaikan"
             style={{ marginBottom: 12 }}
@@ -147,7 +175,7 @@ function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
             <InputNumber
               min={0}
               step={50000}
-              style={{ width: '100%' }}
+              style={{ width: "100%" }}
               formatter={idrFormatter}
               parser={idrParser}
               placeholder="0 (opsional)"
@@ -158,9 +186,9 @@ function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
         {/* Description */}
         <Col xs={24}>
           <Form.Item
-            name={[name, 'description']}
+            name={[name, "description"]}
             label="Kronologi / Deskripsi"
-            rules={[{ required: true, message: 'Wajib diisi' }]}
+            rules={[{ required: true, message: "Wajib diisi" }]}
             style={{ marginBottom: 0 }}
           >
             <Input.TextArea
@@ -178,6 +206,8 @@ function IncidentCard({ name, onRemove, index }: IncidentCardProps) {
 
 interface BookingIncidentTabProps {
   bookingId: number;
+  startDate: string;
+  endDate: string;
 }
 
 interface IncidentRowValues {
@@ -192,10 +222,17 @@ interface IncidentFormValues {
   entries: IncidentRowValues[];
 }
 
-export default function BookingIncidentTab({ bookingId }: BookingIncidentTabProps) {
+export default function BookingIncidentTab({
+  bookingId,
+  startDate,
+  endDate,
+}: BookingIncidentTabProps) {
   const [form] = Form.useForm<IncidentFormValues>();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const disabledDate = (d: Dayjs) =>
+    d.isBefore(dayjs(startDate), "day") || d.isAfter(dayjs(endDate), "day");
 
   const handleSave = async () => {
     let values: IncidentFormValues;
@@ -209,7 +246,7 @@ export default function BookingIncidentTab({ bookingId }: BookingIncidentTabProp
       // TODO: wire to POST/PUT /api/bookings/:id/incidents
       // Serialise dayjs date fields before sending:
       // values.entries.map(e => ({ ...e, date: e.date?.format('YYYY-MM-DD') }))
-      console.debug('[Form D] Incident data for booking', bookingId, values);
+      console.debug("[Form D] Incident data for booking", bookingId, values);
       await new Promise((r) => setTimeout(r, 400));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -225,15 +262,17 @@ export default function BookingIncidentTab({ bookingId }: BookingIncidentTabProp
           <>
             {fields.length === 0 && (
               <Empty
-                image={<WarningOutlined style={{ fontSize: 40, color: '#d1d5db' }} />}
+                image={
+                  <WarningOutlined style={{ fontSize: 40, color: "#d1d5db" }} />
+                }
                 imageStyle={{ height: 48 }}
                 description={
                   <Text type="secondary" style={{ fontSize: 13 }}>
-                    Tidak ada insiden yang dilaporkan.
-                    Klik "Tambah Insiden" jika ada kerusakan atau kehilangan barang.
+                    Tidak ada insiden yang dilaporkan. Klik "Tambah Insiden"
+                    jika ada kerusakan atau kehilangan barang.
                   </Text>
                 }
-                style={{ margin: '24px 0' }}
+                style={{ margin: "24px 0" }}
               />
             )}
 
@@ -243,15 +282,16 @@ export default function BookingIncidentTab({ bookingId }: BookingIncidentTabProp
                 name={name}
                 index={index}
                 onRemove={() => remove(name)}
+                disabledDate={disabledDate}
               />
             ))}
 
             <Button
               type="dashed"
               danger
-              onClick={() => add()}
+              onClick={() => add({ date: dayjs(startDate) })}
               icon={<PlusOutlined />}
-              style={{ width: '100%', marginBottom: 4 }}
+              style={{ width: "100%", marginBottom: 4 }}
             >
               Tambah Insiden
             </Button>
@@ -260,11 +300,29 @@ export default function BookingIncidentTab({ bookingId }: BookingIncidentTabProp
       </Form.List>
 
       {/* Footer */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 12,
+          marginTop: 16,
+        }}
+      >
         {saved && (
-          <Alert type="success" message="Laporan insiden disimpan." showIcon style={{ padding: '4px 12px' }} />
+          <Alert
+            type="success"
+            message="Laporan insiden disimpan."
+            showIcon
+            style={{ padding: "4px 12px" }}
+          />
         )}
-        <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
+          loading={saving}
+          onClick={handleSave}
+        >
           Simpan Laporan Insiden
         </Button>
       </div>

@@ -177,6 +177,28 @@
   color: #fff !important;
 }
 
+.hero-btn-wa {
+  height: 56px !important;
+  padding: 0 36px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  background: rgba(37, 211, 102, 0.08) !important;
+  backdrop-filter: blur(10px);
+  border-color: rgba(37, 211, 102, 0.35) !important;
+  color: #4ade80 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.hero-btn-wa:hover {
+  background: rgba(37, 211, 102, 0.18) !important;
+  border-color: rgba(37, 211, 102, 0.65) !important;
+  color: #86efac !important;
+  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.18) !important;
+}
+
 .hero-scroll {
   position: absolute;
   bottom: 40px;
@@ -207,8 +229,17 @@
 
 @media (max-width: 768px) {
   .hero-wrap { padding: 120px 24px 100px; }
-  .hero-ctas { flex-direction: column; width: 100%; max-width: 320px; margin: 0 auto; }
+  .hero-ctas {
+    flex-direction: column;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+    gap: 12px;
+  }
   .hero-ctas .ant-btn { width: 100% !important; margin: 0 !important; }
+  .hero-btn-primary { padding: 0 32px !important; }
+  .hero-btn-wa { padding: 0 32px !important; justify-content: center !important; }
+  .hero-btn-secondary { padding: 0 32px !important; }
   .hero-badge { margin-bottom: 32px; padding: 6px 16px; }
   .hero-h1 { margin-bottom: 20px; }
   .hero-tagline { margin-bottom: 28px; }

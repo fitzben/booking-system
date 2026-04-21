@@ -400,6 +400,14 @@ export default function AdminBookingDetail({
   const watchedKeperluan = Form.useWatch("keperluan", formKegiatan);
   const watchedJenisProduksi = Form.useWatch("jenis_produksi", formKegiatan);
 
+  const refreshTimeline = () => {
+    setTimelineLoading(true);
+    getBookingTimeline(bookingId)
+      .then(setTimeline)
+      .catch(() => undefined)
+      .finally(() => setTimelineLoading(false));
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -437,6 +445,7 @@ export default function AdminBookingDetail({
       const updated = await getBooking(bookingId);
       setBooking(updated);
       setStatus(updated.status);
+      refreshTimeline();
       message.success("Booking ditandai sudah dihubungi");
     } catch (err) {
       message.error((err as Error).message ?? "Gagal menandai booking");
@@ -457,6 +466,7 @@ export default function AdminBookingDetail({
       setBooking(updated);
       setStatus(updated.status);
       setAdminNotes(updated.admin_notes ?? "");
+      refreshTimeline();
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -483,6 +493,7 @@ export default function AdminBookingDetail({
         },
       });
       setBooking(updated);
+      refreshTimeline();
       setEditingApplicant(false);
     } catch (err: unknown) {
       message.error((err as Error).message ?? "Gagal menyimpan data pemohon.");
@@ -507,6 +518,7 @@ export default function AdminBookingDetail({
         },
       });
       setBooking(updated);
+      refreshTimeline();
       setEditingKegiatan(false);
     } catch (err: unknown) {
       message.error((err as Error).message ?? "Gagal menyimpan data kegiatan.");
@@ -535,6 +547,7 @@ export default function AdminBookingDetail({
         },
       });
       setBooking(updated);
+      refreshTimeline();
       setEditingPeminjaman(false);
     } catch (err: unknown) {
       message.error(
@@ -546,6 +559,7 @@ export default function AdminBookingDetail({
   };
 
   const details = parseDetails(booking?.details);
+  const bookingEndDate = (details?.date_end as string | undefined) ?? booking?.date ?? '';
 
   // ── Loading ─────────────────────────────────────────────────────────────────
 
@@ -1229,7 +1243,13 @@ export default function AdminBookingDetail({
                 ),
                 children: (
                   <div style={{ paddingBottom: 8 }}>
-                    <BookingHandoverTab bookingId={bookingId} />
+                    <BookingHandoverTab
+                      bookingId={bookingId}
+                      startDate={booking!.date}
+                      startTime={booking!.start_time}
+                      endDate={bookingEndDate}
+                      endTime={booking!.end_time}
+                    />
                   </div>
                 ),
               },
@@ -1243,7 +1263,12 @@ export default function AdminBookingDetail({
                 ),
                 children: (
                   <div style={{ paddingBottom: 8 }}>
-                    <BookingEquipmentTab bookingId={bookingId} />
+                    <BookingEquipmentTab
+                      bookingId={bookingId}
+                      startTime={booking!.start_time}
+                      endTime={booking!.end_time}
+                      defaultEquipment={rooms.find((r) => r.id === booking!.room_id)?.default_equipment}
+                    />
                   </div>
                 ),
               },
@@ -1257,7 +1282,11 @@ export default function AdminBookingDetail({
                 ),
                 children: (
                   <div style={{ paddingBottom: 8 }}>
-                    <BookingIncidentTab bookingId={bookingId} />
+                    <BookingIncidentTab
+                      bookingId={bookingId}
+                      startDate={booking!.date}
+                      endDate={bookingEndDate}
+                    />
                   </div>
                 ),
               },

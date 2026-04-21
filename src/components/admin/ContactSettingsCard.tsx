@@ -3,8 +3,6 @@ import { Card, Form, Input, Button, Divider, message } from 'antd';
 import {
   WhatsAppOutlined,
   MailOutlined,
-  EnvironmentOutlined,
-  ClockCircleOutlined,
   LinkOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
@@ -60,7 +58,7 @@ export default function ContactSettingsCard() {
       {ctx}
       <Form form={form} layout="vertical">
 
-        <Divider orientation="left" orientationMargin={0} style={{ fontSize: 12, color: '#9ca3af' }}>
+        <Divider titlePlacement="left" orientationMargin={0} style={{ fontSize: 12, color: '#9ca3af' }}>
           WhatsApp
         </Divider>
 
@@ -87,7 +85,7 @@ export default function ContactSettingsCard() {
           />
         </Form.Item>
 
-        <Divider orientation="left" orientationMargin={0} style={{ fontSize: 12, color: '#9ca3af' }}>
+        <Divider titlePlacement="left" orientationMargin={0} style={{ fontSize: 12, color: '#9ca3af' }}>
           Kontak Lainnya
         </Divider>
 
@@ -102,7 +100,6 @@ export default function ContactSettingsCard() {
         <Form.Item name="contact_address" label="Alamat">
           <Input.TextArea
             rows={2}
-            prefix={<EnvironmentOutlined />}
             placeholder="Jl. Nama Jalan No. 123, Jakarta"
           />
         </Form.Item>
@@ -118,7 +115,7 @@ export default function ContactSettingsCard() {
           />
         </Form.Item>
 
-        <Divider orientation="left" orientationMargin={0} style={{ fontSize: 12, color: '#9ca3af' }}>
+        <Divider titlePlacement="left" orientationMargin={0} style={{ fontSize: 12, color: '#9ca3af' }}>
           Jam Operasional
         </Divider>
 

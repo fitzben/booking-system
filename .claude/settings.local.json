@@ -21,7 +21,8 @@
       "Bash(curl -si http://localhost:4321/api/bookings/999 -H 'x-admin-username: superadmin_test' -H 'x-admin-password: test1234')",
       "Bash(grep -n \"CREATE TABLE\" /Users/itmanager/Documents/md_projects/booking-system/migrations/*.sql)",
       "Bash(grep -v \"wrangler\\\\|WARNING\\\\|update\\\\|Please\\\\|Run \\\\`\\\\|After\\\\|npx\\\\|--------\")",
-      "Bash(grep -n \"ADMIN_USERNAME_KEY\\\\|ADMIN_PASSWORD_KEY\\\\|x-admin-username\\\\|x-admin-password\" /Users/itmanager/Documents/md_projects/booking-system/src/components/booking/AdminBookingList.tsx /Users/itmanager/Documents/md_projects/booking-system/src/components/admin/AdminReportsPage.tsx /Users/itmanager/Documents/md_projects/booking-system/src/components/users/AdminUsersPage.tsx /Users/itmanager/Documents/md_projects/booking-system/src/pages/api/users/[id].ts)"
+      "Bash(grep -n \"ADMIN_USERNAME_KEY\\\\|ADMIN_PASSWORD_KEY\\\\|x-admin-username\\\\|x-admin-password\" /Users/itmanager/Documents/md_projects/booking-system/src/components/booking/AdminBookingList.tsx /Users/itmanager/Documents/md_projects/booking-system/src/components/admin/AdminReportsPage.tsx /Users/itmanager/Documents/md_projects/booking-system/src/components/users/AdminUsersPage.tsx /Users/itmanager/Documents/md_projects/booking-system/src/pages/api/users/[id].ts)",
+      "Bash(find /Users/itmanager/Documents/md_projects/booking-system/node_modules/antd/lib/_util -name \"hooks.d.ts\" -exec grep -n \"Orientation\" {} \\\\;)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Form,
   Input,
@@ -12,14 +12,14 @@ import {
   Typography,
   Alert,
   Divider,
-} from 'antd';
+} from "antd";
 import {
   LoginOutlined,
   LogoutOutlined,
   SaveOutlined,
   FileTextOutlined,
-} from '@ant-design/icons';
-import type { Dayjs } from 'dayjs';
+} from "@ant-design/icons";
+import dayjs, { type Dayjs } from "dayjs";
 
 const { Text } = Typography;
 
@@ -40,21 +40,34 @@ interface HandoverFormValues {
 // ── Sub-component: one side of the handover form ─────────────────────────────
 
 interface HandoverCardProps {
-  prefix: 'ci' | 'co';
+  prefix: "ci" | "co";
   title: string;
   icon: React.ReactNode;
   accentColor: string;
+  disabledDate?: (d: Dayjs) => boolean;
 }
 
-function HandoverCard({ prefix, title, icon, accentColor }: HandoverCardProps) {
+function HandoverCard({
+  prefix,
+  title,
+  icon,
+  accentColor,
+  disabledDate,
+}: HandoverCardProps) {
   return (
     <Card
-      style={{ borderRadius: 10, borderTop: `3px solid ${accentColor}`, height: '100%' }}
+      style={{
+        borderRadius: 10,
+        borderTop: `3px solid ${accentColor}`,
+        height: "100%",
+      }}
       styles={{ body: { paddingTop: 20 } }}
     >
       <Space style={{ marginBottom: 20 }}>
         <span style={{ color: accentColor, fontSize: 18 }}>{icon}</span>
-        <Text strong style={{ fontSize: 15 }}>{title}</Text>
+        <Text strong style={{ fontSize: 15 }}>
+          {title}
+        </Text>
       </Space>
 
       <Row gutter={12}>
@@ -64,7 +77,12 @@ function HandoverCard({ prefix, title, icon, accentColor }: HandoverCardProps) {
             label="Tanggal"
             style={{ marginBottom: 12 }}
           >
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Pilih tanggal" />
+            <DatePicker
+              style={{ width: "100%" }}
+              format="DD MMMM YYYY"
+              placeholder="Pilih tanggal"
+              disabledDate={disabledDate}
+            />
           </Form.Item>
         </Col>
         <Col xs={24} sm={12}>
@@ -73,7 +91,12 @@ function HandoverCard({ prefix, title, icon, accentColor }: HandoverCardProps) {
             label="Jam"
             style={{ marginBottom: 12 }}
           >
-            <TimePicker style={{ width: '100%' }} format="HH:mm" placeholder="Pilih jam" minuteStep={5} />
+            <TimePicker
+              style={{ width: "100%" }}
+              format="HH:mm"
+              placeholder="Pilih jam"
+              minuteStep={5}
+            />
           </Form.Item>
         </Col>
       </Row>
@@ -95,9 +118,9 @@ function HandoverCard({ prefix, title, icon, accentColor }: HandoverCardProps) {
         <Input.TextArea
           rows={4}
           placeholder={
-            prefix === 'ci'
-              ? 'Contoh: Ruangan bersih, AC berfungsi, 2 kursi tanpa sandaran, lampu sorot OK...'
-              : 'Contoh: Ruangan dikembalikan bersih, tidak ada kerusakan baru, 1 kabel hilang...'
+            prefix === "ci"
+              ? "Contoh: Ruangan bersih, AC berfungsi, 2 kursi tanpa sandaran, lampu sorot OK..."
+              : "Contoh: Ruangan dikembalikan bersih, tidak ada kerusakan baru, 1 kabel hilang..."
           }
         />
       </Form.Item>
@@ -109,12 +132,34 @@ function HandoverCard({ prefix, title, icon, accentColor }: HandoverCardProps) {
 
 interface BookingHandoverTabProps {
   bookingId: number;
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
 }
 
-export default function BookingHandoverTab({ bookingId }: BookingHandoverTabProps) {
+export default function BookingHandoverTab({
+  bookingId,
+  startDate,
+  startTime,
+  endDate,
+  endTime,
+}: BookingHandoverTabProps) {
   const [form] = Form.useForm<HandoverFormValues>();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    form.setFieldsValue({
+      ci_date: dayjs(startDate),
+      ci_time: dayjs(startTime, "HH:mm"),
+      co_date: dayjs(endDate),
+      co_time: dayjs(endTime, "HH:mm"),
+    });
+  }, [startDate, startTime, endDate, endTime]);
+
+  const disabledDate = (d: Dayjs) =>
+    d.isBefore(dayjs(startDate), "day") || d.isAfter(dayjs(endDate), "day");
 
   const handleSave = async () => {
     const values = form.getFieldsValue();
@@ -127,7 +172,7 @@ export default function BookingHandoverTab({ bookingId }: BookingHandoverTabProp
       //   checkout: { date: values.co_date?.format('YYYY-MM-DD'), ... },
       //   notes: values.notes,
       // }
-      console.debug('[Form B] Handover data for booking', bookingId, values);
+      console.debug("[Form B] Handover data for booking", bookingId, values);
       await new Promise((r) => setTimeout(r, 400)); // simulate network
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -145,6 +190,7 @@ export default function BookingHandoverTab({ bookingId }: BookingHandoverTabProp
             title="Check-in"
             icon={<LoginOutlined />}
             accentColor="#22c55e"
+            disabledDate={disabledDate}
           />
         </Col>
         <Col xs={24} md={12}>
@@ -153,19 +199,20 @@ export default function BookingHandoverTab({ bookingId }: BookingHandoverTabProp
             title="Check-out"
             icon={<LogoutOutlined />}
             accentColor="#f59e0b"
+            disabledDate={disabledDate}
           />
         </Col>
       </Row>
 
-      <Divider style={{ margin: '20px 0 16px' }} />
+      <Divider style={{ margin: "20px 0 16px" }} />
 
       {/* General notes */}
       <Card
         size="small"
-        style={{ borderRadius: 10, background: '#fafafa' }}
+        style={{ borderRadius: 10, background: "#fafafa" }}
         title={
           <Space>
-            <FileTextOutlined style={{ color: '#6b7280' }} />
+            <FileTextOutlined style={{ color: "#6b7280" }} />
             <Text style={{ fontSize: 13 }}>Catatan Umum</Text>
           </Space>
         }
@@ -179,9 +226,22 @@ export default function BookingHandoverTab({ bookingId }: BookingHandoverTabProp
       </Card>
 
       {/* Footer actions */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 12,
+          marginTop: 16,
+        }}
+      >
         {saved && (
-          <Alert type="success" message="Data serah terima disimpan." showIcon style={{ padding: '4px 12px' }} />
+          <Alert
+            type="success"
+            message="Data serah terima disimpan."
+            showIcon
+            style={{ padding: "4px 12px" }}
+          />
         )}
         <Button
           type="primary"

@@ -59,6 +59,44 @@ const SIDER_WIDTH = 220;
 const SIDER_COLLAPSED_WIDTH = 80;
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 menit
 
+const AUTH_CACHE_KEY = "admin_auth_cache";
+const UNREAD_CACHE_KEY = "admin_unread_cache";
+const AUTH_TTL = 5 * 60 * 1000; // 5 minutes
+const UNREAD_TTL = 60 * 1000; // 60 seconds
+
+type AuthCache = {
+  username: string;
+  role: AdminRole;
+  permissions: Record<string, string>;
+  ts: number;
+};
+
+function readAuthCache(): AuthCache | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed: AuthCache = JSON.parse(raw);
+    if (Date.now() - parsed.ts > AUTH_TTL) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function writeAuthCache(data: Omit<AuthCache, "ts">) {
+  try {
+    sessionStorage.setItem(
+      AUTH_CACHE_KEY,
+      JSON.stringify({ ...data, ts: Date.now() }),
+    );
+  } catch {}
+}
+function clearAuthCache() {
+  try {
+    sessionStorage.removeItem(AUTH_CACHE_KEY);
+    sessionStorage.removeItem(UNREAD_CACHE_KEY);
+  } catch {}
+}
+
 export default function AdminLayout({
   children,
   activeKey,
@@ -80,25 +118,50 @@ export default function AdminLayout({
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Verifikasi session via server — satu-satunya sumber kebenaran auth.
-    // Cookies dikirim otomatis; username/role dikembalikan bila session valid.
-    fetch("/api/auth/me")
-      .then((r) =>
-        r.ok
-          ? (r.json() as Promise<{ username: string; role: AdminRole; permissions: Record<string, string> }>)
-          : null,
-      )
-      .then((data) => {
-        if (data) {
-          setCurrentUsername(data.username);
-          setUserRole(data.role);
-          setPermissions(data.permissions ?? {});
-          setAuthed(true);
-        } else {
-          setAuthed(false);
-        }
-      })
-      .catch(() => setAuthed(false));
+    // Hide the global page loader (BaseLayout #global-loader) as soon as
+    // the admin UI mounts — don't wait for window.load which fires too late
+    // for client:only React components.
+    (window as any).hideLoader?.();
+  }, []);
+
+  useEffect(() => {
+    // Use cached auth if still fresh — skip the network round-trip.
+    const cached = readAuthCache();
+    if (cached) {
+      setCurrentUsername(cached.username);
+      setUserRole(cached.role);
+      setPermissions(cached.permissions ?? {});
+      setAuthed(true);
+    } else {
+      // Verifikasi session via server — satu-satunya sumber kebenaran auth.
+      // Cookies dikirim otomatis; username/role dikembalikan bila session valid.
+      fetch("/api/auth/me")
+        .then((r) =>
+          r.ok
+            ? (r.json() as Promise<{
+                username: string;
+                role: AdminRole;
+                permissions: Record<string, string>;
+              }>)
+            : null,
+        )
+        .then((data) => {
+          if (data) {
+            setCurrentUsername(data.username);
+            setUserRole(data.role);
+            setPermissions(data.permissions ?? {});
+            setAuthed(true);
+            writeAuthCache({
+              username: data.username,
+              role: data.role,
+              permissions: data.permissions ?? {},
+            });
+          } else {
+            setAuthed(false);
+          }
+        })
+        .catch(() => setAuthed(false));
+    }
 
     const handleResize = () => {
       if (typeof window === "undefined") return;
@@ -125,18 +188,27 @@ export default function AdminLayout({
     setLoginLoading(true);
     setLoginError("");
     try {
-      // login() POST ke /api/auth/login — server buat session + set cookie HttpOnly
+      // login()
       await login(values.username, values.password);
-      // Fetch full session data (includes permissions) after login
+      // Fetch full session data after login
       const r = await fetch("/api/auth/me");
       const data = r.ok
-        ? (await r.json() as { username: string; role: AdminRole; permissions: Record<string, string> })
+        ? ((await r.json()) as {
+            username: string;
+            role: AdminRole;
+            permissions: Record<string, string>;
+          })
         : null;
       if (data) {
         setCurrentUsername(data.username);
         setUserRole(data.role);
         setPermissions(data.permissions ?? {});
         setAuthed(true);
+        writeAuthCache({
+          username: data.username,
+          role: data.role,
+          permissions: data.permissions ?? {},
+        });
       }
     } catch {
       setLoginError("Username atau password salah. Silakan coba lagi.");
@@ -148,6 +220,7 @@ export default function AdminLayout({
     reason?: "inactivity" | "unauthorized" | "permission_changed",
   ) => {
     apiLogout().catch(() => undefined); // hapus session di server + clear cookie
+    clearAuthCache();
     setAuthed(false);
     setCurrentUsername("");
     setUserRole(null);
@@ -222,26 +295,45 @@ export default function AdminLayout({
     };
   }, [authed]);
 
-  // Fetch sekali saat mount — tanpa polling
+  // Fetch unread count — with 60s sessionStorage cache to avoid per-page refetch.
   useEffect(() => {
     if (!authed || !userRole) return;
     if (permissions?.bookings === "none") return;
 
+    try {
+      const raw = sessionStorage.getItem(UNREAD_CACHE_KEY);
+      if (raw) {
+        const { count, ts } = JSON.parse(raw);
+        if (Date.now() - ts < UNREAD_TTL) {
+          setUnreadCount(count);
+          return;
+        }
+      }
+    } catch {}
+
     getBookingUnreadCount()
-      .then((data) => setUnreadCount(data.unread_count))
+      .then((data) => {
+        setUnreadCount(data.unread_count);
+        try {
+          sessionStorage.setItem(
+            UNREAD_CACHE_KEY,
+            JSON.stringify({ count: data.unread_count, ts: Date.now() }),
+          );
+        } catch {}
+      })
       .catch(() => undefined);
   }, [authed, userRole, permissions]);
 
   const hasPerm = (resource: string) => {
-    const level = permissions?.[resource] ?? 'none';
-    return level !== 'none';
+    const level = permissions?.[resource] ?? "none";
+    return level !== "none";
   };
-  const canAccessBookings = hasPerm('bookings');
-  const canAccessRooms = hasPerm('rooms');
-  const canAccessInventory = hasPerm('inventory');
-  const canAccessUsers = hasPerm('users');
-  const canAccessReports = hasPerm('reports');
-  const canAccessSettings = hasPerm('settings');
+  const canAccessBookings = hasPerm("bookings");
+  const canAccessRooms = hasPerm("rooms");
+  const canAccessInventory = hasPerm("inventory");
+  const canAccessUsers = hasPerm("users");
+  const canAccessReports = hasPerm("reports");
+  const canAccessSettings = hasPerm("settings");
 
   const navItems = [
     canAccessReports && {
@@ -290,27 +382,7 @@ export default function AdminLayout({
     },
   ].filter(Boolean) as import("antd").MenuProps["items"];
 
-  if (authed === null) {
-    return (
-      <StyleProvider ssrInline layer hashPriority="high">
-        <ConfigProvider theme={MD_THEME}>
-          <div
-            style={{
-              height: "100vh",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: COLORS.bgGray,
-            }}
-          >
-            <Spin size="large" />
-          </div>
-        </ConfigProvider>
-      </StyleProvider>
-    );
-  }
-
-  if (!authed) {
+  if (authed === false) {
     return (
       <StyleProvider ssrInline layer hashPriority="high">
         <ConfigProvider theme={MD_THEME}>
@@ -393,7 +465,9 @@ export default function AdminLayout({
   }
 
   return (
-    <AdminAuthContext.Provider value={{ userRole, currentUsername, permissions }}>
+    <AdminAuthContext.Provider
+      value={{ userRole, currentUsername, permissions }}
+    >
       <StyleProvider ssrInline layer hashPriority="high">
         <ConfigProvider theme={MD_THEME}>
           <Layout style={{ minHeight: "100vh" }}>
@@ -550,7 +624,20 @@ export default function AdminLayout({
                   minHeight: "calc(100vh - 56px)",
                 }}
               >
-                {children}
+                {authed === null ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minHeight: "calc(100vh - 56px)",
+                    }}
+                  >
+                    <Spin size="large" />
+                  </div>
+                ) : (
+                  children
+                )}
               </Content>
             </Layout>
           </Layout>

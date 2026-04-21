@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { checkAuth, getAuthUser } from '../../../lib/auth';
 import { getDB } from '../../../lib/db';
 
-// GET /api/reports/summary?year=2026&month=4
+// GET /api/reports/summary?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&company=...
 export const GET: APIRoute = async (context) => {
   const unauth = await checkAuth(context);
   if (unauth) return unauth;
@@ -12,156 +12,152 @@ export const GET: APIRoute = async (context) => {
     return Response.json({ error: 'Forbidden — hanya superadmin dan manager' }, { status: 403 });
   }
 
-  const rawYear  = context.url.searchParams.get('year');
-  const rawMonth = context.url.searchParams.get('month');
+  // ── Default: current month ─────────────────────────────────────────────────
+  const now = new Date();
+  const cy  = now.getFullYear();
+  const cm  = now.getMonth() + 1;
+  const ld  = new Date(cy, cm, 0).getDate();
+  const defFrom = `${cy}-${String(cm).padStart(2,'0')}-01`;
+  const defTo   = `${cy}-${String(cm).padStart(2,'0')}-${String(ld).padStart(2,'0')}`;
 
-  if (!rawYear || !rawMonth) {
-    return Response.json({ error: 'Parameter year dan month wajib diisi' }, { status: 400 });
-  }
+  const dateFrom = context.url.searchParams.get('date_from') ?? defFrom;
+  const dateTo   = context.url.searchParams.get('date_to')   ?? defTo;
+  const company  = context.url.searchParams.get('company')   ?? '';
 
-  const year  = parseInt(rawYear, 10);
-  const month = parseInt(rawMonth, 10);
-
-  if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
-    return Response.json({ error: 'year atau month tidak valid' }, { status: 400 });
-  }
+  // ── Previous period (same length, for delta stat) ──────────────────────────
+  const msFrom   = new Date(dateFrom).getTime();
+  const msTo     = new Date(dateTo).getTime();
+  const diffDays = Math.round((msTo - msFrom) / 86_400_000);
+  const prevToDate   = new Date(msFrom - 86_400_000);
+  const prevFromDate = new Date(prevToDate.getTime() - diffDays * 86_400_000);
+  const prevFromStr  = prevFromDate.toISOString().slice(0, 10);
+  const prevToStr    = prevToDate.toISOString().slice(0, 10);
 
   const db = getDB(context.locals);
 
-  // Batas tanggal bulan ini: [dateStart, dateStart +1 month)
-  const dateStart = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-01`;
-
-  // Bulan lalu — handle wrap January → December tahun sebelumnya
-  const lastYear  = month === 1 ? year - 1 : year;
-  const lastMonth = month === 1 ? 12 : month - 1;
-  const lastDateStart = `${String(lastYear).padStart(4, '0')}-${String(lastMonth).padStart(2, '0')}-01`;
+  // Company filter: CAST trick — empty string → no filter; non-empty → exact match
+  const cf = `AND (CAST(? AS TEXT) = '' OR COALESCE(json_extract(details, '$.organization'), '') = ?)`;
 
   const [
     overviewRaw,
-    lastMonthRaw,
-    revenueTotalRaw,
-    revenueByRoomRaw,
+    prevRaw,
+    revTotalRaw,
+    revByRoomRaw,
     dailyRaw,
-    roomsRankingRaw,
-    statusBreakdownRaw,
-    applicantTypeRaw,
+    roomsRaw,
+    statusRaw,
+    applicantRaw,
+    compBreakdownRaw,
+    companiesRaw,
     inventoryRaw,
   ] = await Promise.all([
-    // ── Overview: status counts bulan ini ─────────────────────────────────────
+
+    // ── Overview counts ───────────────────────────────────────────────────────
     db.prepare(`
-      SELECT
-        COUNT(*) AS total_bookings,
+      SELECT COUNT(*) AS total_bookings,
         SUM(CASE WHEN status = 'approved'    THEN 1 ELSE 0 END) AS approved,
         SUM(CASE WHEN status = 'pending'     THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN status = 'rejected'    THEN 1 ELSE 0 END) AS rejected,
         SUM(CASE WHEN status = 'finished'    THEN 1 ELSE 0 END) AS finished,
         SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress
       FROM bookings
-      WHERE date >= ? AND date < date(?, '+1 month')
-    `).bind(dateStart, dateStart).first<{
-      total_bookings: number;
-      approved: number;
-      pending: number;
-      rejected: number;
-      finished: number;
-      in_progress: number;
+      WHERE date >= ? AND date <= ? ${cf}
+    `).bind(dateFrom, dateTo, company, company).first<{
+      total_bookings: number; approved: number; pending: number;
+      rejected: number; finished: number; in_progress: number;
     }>(),
 
-    // ── Total bulan lalu (untuk vs_last_month) ────────────────────────────────
+    // ── Previous-period total (same company filter) ───────────────────────────
     db.prepare(`
       SELECT COUNT(*) AS total_bookings
       FROM bookings
-      WHERE date >= ? AND date < date(?, '+1 month')
-    `).bind(lastDateStart, lastDateStart).first<{ total_bookings: number }>(),
+      WHERE date >= ? AND date <= ? ${cf}
+    `).bind(prevFromStr, prevToStr, company, company).first<{ total_bookings: number }>(),
 
-    // ── Revenue estimasi: sum base_price (approved + finished) ────────────────
+    // ── Revenue: estimated total ──────────────────────────────────────────────
     db.prepare(`
       SELECT COALESCE(SUM(r.base_price), 0) AS estimated_total
-      FROM bookings b
-      JOIN rooms r ON r.id = b.room_id
+      FROM bookings b JOIN rooms r ON r.id = b.room_id
       WHERE b.status IN ('approved', 'finished')
-        AND b.date >= ? AND b.date < date(?, '+1 month')
-    `).bind(dateStart, dateStart).first<{ estimated_total: number }>(),
+        AND b.date >= ? AND b.date <= ? ${cf}
+    `).bind(dateFrom, dateTo, company, company).first<{ estimated_total: number }>(),
 
     // ── Revenue by room ───────────────────────────────────────────────────────
     db.prepare(`
-      SELECT
-        b.room_id,
-        r.name AS room_name,
-        COALESCE(SUM(r.base_price), 0) AS total,
-        COUNT(*) AS count
-      FROM bookings b
-      JOIN rooms r ON r.id = b.room_id
+      SELECT b.room_id, r.name AS room_name,
+        COALESCE(SUM(r.base_price), 0) AS total, COUNT(*) AS count
+      FROM bookings b JOIN rooms r ON r.id = b.room_id
       WHERE b.status IN ('approved', 'finished')
-        AND b.date >= ? AND b.date < date(?, '+1 month')
-      GROUP BY b.room_id, r.name
-      ORDER BY total DESC
-    `).bind(dateStart, dateStart).all<{
-      room_id: number;
-      room_name: string;
-      total: number;
-      count: number;
+        AND b.date >= ? AND b.date <= ? ${cf}
+      GROUP BY b.room_id, r.name ORDER BY total DESC
+    `).bind(dateFrom, dateTo, company, company).all<{
+      room_id: number; room_name: string; total: number; count: number;
     }>(),
 
-    // ── Booking per hari ──────────────────────────────────────────────────────
+    // ── Daily bookings ────────────────────────────────────────────────────────
     db.prepare(`
-      SELECT
-        date,
-        COUNT(*) AS count,
+      SELECT date, COUNT(*) AS count,
         SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected
       FROM bookings
-      WHERE date >= ? AND date < date(?, '+1 month')
-      GROUP BY date
-      ORDER BY date ASC
-    `).bind(dateStart, dateStart).all<{
-      date: string;
-      count: number;
-      approved: number;
-      rejected: number;
+      WHERE date >= ? AND date <= ? ${cf}
+      GROUP BY date ORDER BY date ASC
+    `).bind(dateFrom, dateTo, company, company).all<{
+      date: string; count: number; approved: number; rejected: number;
     }>(),
 
     // ── Rooms ranking ─────────────────────────────────────────────────────────
     db.prepare(`
-      SELECT
-        b.room_id,
-        r.name AS room_name,
+      SELECT b.room_id, r.name AS room_name,
         COUNT(*) AS count,
         SUM(CASE WHEN b.status = 'approved' THEN 1 ELSE 0 END) AS approved
-      FROM bookings b
-      JOIN rooms r ON r.id = b.room_id
-      WHERE b.date >= ? AND b.date < date(?, '+1 month')
-      GROUP BY b.room_id, r.name
-      ORDER BY count DESC
-    `).bind(dateStart, dateStart).all<{
-      room_id: number;
-      room_name: string;
-      count: number;
-      approved: number;
+      FROM bookings b JOIN rooms r ON r.id = b.room_id
+      WHERE b.date >= ? AND b.date <= ? ${cf}
+      GROUP BY b.room_id, r.name ORDER BY count DESC
+    `).bind(dateFrom, dateTo, company, company).all<{
+      room_id: number; room_name: string; count: number; approved: number;
     }>(),
 
-    // ── Status breakdown (untuk pie chart) ───────────────────────────────────
+    // ── Status breakdown (pie chart) ──────────────────────────────────────────
     db.prepare(`
       SELECT status, COUNT(*) AS count
       FROM bookings
-      WHERE date >= ? AND date < date(?, '+1 month')
+      WHERE date >= ? AND date <= ? ${cf}
       GROUP BY status
-    `).bind(dateStart, dateStart).all<{ status: string; count: number }>(),
+    `).bind(dateFrom, dateTo, company, company).all<{ status: string; count: number }>(),
 
     // ── Applicant type breakdown ──────────────────────────────────────────────
     db.prepare(`
-      SELECT
-        COALESCE(json_extract(details, '$.applicant_type'), 'personal') AS type,
+      SELECT COALESCE(json_extract(details, '$.applicant_type'), 'personal') AS type,
         COUNT(*) AS count
       FROM bookings
-      WHERE date >= ? AND date < date(?, '+1 month')
+      WHERE date >= ? AND date <= ? ${cf}
       GROUP BY type
-    `).bind(dateStart, dateStart).all<{ type: string; count: number }>(),
+    `).bind(dateFrom, dateTo, company, company).all<{ type: string; count: number }>(),
 
-    // ── Inventory summary ─────────────────────────────────────────────────────
+    // ── Company breakdown (date-filtered only; no company filter — shows all) ─
     db.prepare(`
       SELECT
-        COUNT(*) AS total_items,
+        COALESCE(NULLIF(TRIM(json_extract(details, '$.organization')), ''), '(Pribadi)') AS company,
+        COUNT(*) AS count,
+        SUM(CASE WHEN status IN ('approved', 'finished') THEN 1 ELSE 0 END) AS approved
+      FROM bookings
+      WHERE date >= ? AND date <= ?
+      GROUP BY company ORDER BY count DESC LIMIT 20
+    `).bind(dateFrom, dateTo).all<{ company: string; count: number; approved: number }>(),
+
+    // ── All unique companies across all time (for dropdown) ───────────────────
+    db.prepare(`
+      SELECT DISTINCT TRIM(json_extract(details, '$.organization')) AS company
+      FROM bookings
+      WHERE json_extract(details, '$.organization') IS NOT NULL
+        AND TRIM(json_extract(details, '$.organization')) != ''
+      ORDER BY company ASC
+    `).all<{ company: string }>(),
+
+    // ── Inventory summary (no date/company filter) ────────────────────────────
+    db.prepare(`
+      SELECT COUNT(*) AS total_items,
         COALESCE(SUM(quantity_damaged), 0) AS damaged,
         SUM(CASE WHEN service_date IS NOT NULL THEN 1 ELSE 0 END) AS in_service,
         SUM(CASE WHEN warranty_date IS NOT NULL
@@ -170,35 +166,34 @@ export const GET: APIRoute = async (context) => {
             THEN 1 ELSE 0 END) AS expiring_warranty
       FROM inventory
     `).first<{
-      total_items: number;
-      damaged: number;
-      in_service: number;
-      expiring_warranty: number;
+      total_items: number; damaged: number; in_service: number; expiring_warranty: number;
     }>(),
   ]);
 
-  const thisMonthTotal = overviewRaw?.total_bookings ?? 0;
-  const lastMonthTotal = lastMonthRaw?.total_bookings ?? 0;
+  const thisTotal = overviewRaw?.total_bookings ?? 0;
+  const prevTotal = prevRaw?.total_bookings ?? 0;
 
   return Response.json({
     overview: {
-      total_bookings: thisMonthTotal,
-      approved:       overviewRaw?.approved    ?? 0,
-      pending:        overviewRaw?.pending     ?? 0,
-      rejected:       overviewRaw?.rejected    ?? 0,
-      finished:       overviewRaw?.finished    ?? 0,
-      in_progress:    overviewRaw?.in_progress ?? 0,
-      new_this_month: thisMonthTotal,
-      vs_last_month:  thisMonthTotal - lastMonthTotal,
+      total_bookings:  thisTotal,
+      approved:        overviewRaw?.approved    ?? 0,
+      pending:         overviewRaw?.pending     ?? 0,
+      rejected:        overviewRaw?.rejected    ?? 0,
+      finished:        overviewRaw?.finished    ?? 0,
+      in_progress:     overviewRaw?.in_progress ?? 0,
+      new_this_period: thisTotal,
+      vs_prev_period:  thisTotal - prevTotal,
     },
     revenue: {
-      estimated_total: revenueTotalRaw?.estimated_total ?? 0,
-      by_room:         revenueByRoomRaw.results,
+      estimated_total: revTotalRaw?.estimated_total ?? 0,
+      by_room:         revByRoomRaw.results,
     },
     daily_bookings:           dailyRaw.results,
-    rooms_ranking:            roomsRankingRaw.results,
-    status_breakdown:         statusBreakdownRaw.results,
-    applicant_type_breakdown: applicantTypeRaw.results,
+    rooms_ranking:            roomsRaw.results,
+    status_breakdown:         statusRaw.results,
+    applicant_type_breakdown: applicantRaw.results,
+    company_breakdown:        compBreakdownRaw.results,
+    companies:                companiesRaw.results.map(r => r.company),
     inventory_summary: {
       total_items:       inventoryRaw?.total_items       ?? 0,
       damaged:           inventoryRaw?.damaged           ?? 0,

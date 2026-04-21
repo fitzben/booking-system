@@ -59,6 +59,8 @@ export interface RoomFormValues {
   // Lists
   facilities_raw: string;     // comma-separated → string[]
   equipment_raw: string;      // comma-separated → string[]
+  // Default equipment (structured, for booking pre-population)
+  default_equipment: { name: string; quantity: number }[];
   // Pricing
   tiers: { hours: number; price: number }[];
   overtime_rate: number;
@@ -78,6 +80,7 @@ export function roomToFormValues(
     short_description: room.short_description ?? '',
     facilities_raw: arrayToRaw(room.facilities),
     equipment_raw: arrayToRaw(room.equipment_highlights),
+    default_equipment: room.default_equipment ?? [],
     tiers: tiers.map((t) => ({ hours: t.hours, price: t.price })),
     overtime_rate: room.overtime_rate ?? 0,
   };
@@ -183,13 +186,61 @@ export default function RoomForm({ form, tiersLoading = false }: RoomFormProps) 
       <Form.Item
         name="equipment_raw"
         label="Equipment Highlights (pisahkan dengan koma)"
-        tooltip="Ditampilkan di bagian Equipment pada detail ruangan"
+        tooltip="Ditampilkan di bagian Equipment pada detail ruangan publik"
       >
         <Input.TextArea
           rows={3}
           placeholder="Kamera & tripod, Lighting set, Monitor preview 32&quot;, ..."
         />
       </Form.Item>
+
+      {/* ── Default Equipment (structured, for booking pre-population) ── */}
+      <Divider titlePlacement="start" style={{ fontSize: 12, color: '#6b7280' }}>
+        Default Equipment Booking
+      </Divider>
+
+      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+        Daftar equipment bawaan ruangan ini. Akan otomatis muncul sebagai baris pre-filled saat admin membuka Tab Equipment Usage pada booking ruangan ini.
+      </Text>
+
+      <Form.List name="default_equipment">
+        {(fields, { add, remove }) => (
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            {fields.map(({ key, name }) => (
+              <Space key={key} align="baseline" style={{ width: '100%' }}>
+                <Form.Item
+                  name={[name, 'name']}
+                  rules={[{ required: true, message: 'Wajib' }]}
+                  style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
+                >
+                  <Input placeholder="Nama equipment (misal: Tripod, Lighting Set)" />
+                </Form.Item>
+                <Form.Item
+                  name={[name, 'quantity']}
+                  style={{ marginBottom: 0 }}
+                  initialValue={1}
+                >
+                  <InputNumber min={1} addonAfter="pcs" style={{ width: 110 }} placeholder="1" />
+                </Form.Item>
+                <Button
+                  type="text"
+                  danger
+                  icon={<MinusCircleOutlined />}
+                  onClick={() => remove(name)}
+                />
+              </Space>
+            ))}
+            <Button
+              type="dashed"
+              onClick={() => add({ name: '', quantity: 1 })}
+              icon={<PlusOutlined />}
+              style={{ width: '100%' }}
+            >
+              Tambah Equipment Default
+            </Button>
+          </Space>
+        )}
+      </Form.List>
 
       {/* ── Pricing tiers ──────────────────────────────────────────────── */}
       <Divider titlePlacement="start" style={{ fontSize: 12, color: '#6b7280' }}>

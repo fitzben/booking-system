@@ -7,6 +7,11 @@ import type { AdminRole } from "./constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface DefaultEquipmentItem {
+  name: string;
+  quantity: number;
+}
+
 export interface Room {
   id: number;
   name: string;
@@ -21,18 +26,26 @@ export interface Room {
   capacity?: string | null;
   facilities?: string[];
   equipment_highlights?: string[];
+  // Default equipment for booking Equipment Usage tab — requires migration 017
+  default_equipment?: DefaultEquipmentItem[];
 }
 
 /** Raw row as D1 returns it: JSON-array columns are still strings. */
-type RawRoom = Omit<Room, 'images' | 'facilities' | 'equipment_highlights'> & {
+type RawRoom = Omit<Room, 'images' | 'facilities' | 'equipment_highlights' | 'default_equipment'> & {
   images?: string | null;
   facilities?: string | null;
   equipment_highlights?: string | null;
+  default_equipment?: string | null;
 };
 
 function safeParseArray(v?: string | null): string[] {
   if (!v) return [];
   try { return JSON.parse(v) as string[]; } catch { return []; }
+}
+
+function safeParseJSON<T>(v?: string | null, fallback: T = [] as unknown as T): T {
+  if (!v) return fallback;
+  try { return JSON.parse(v) as T; } catch { return fallback; }
 }
 
 function parseRoom(raw: RawRoom): Room {
@@ -41,15 +54,17 @@ function parseRoom(raw: RawRoom): Room {
     images: safeParseArray(raw.images),
     facilities: safeParseArray(raw.facilities),
     equipment_highlights: safeParseArray(raw.equipment_highlights),
+    default_equipment: safeParseJSON<DefaultEquipmentItem[]>(raw.default_equipment),
   };
 }
 
-/** Convert array fields to JSON strings before writing to D1. */
+/** Convert array/object fields to JSON strings before writing to D1. */
 function serializeArrayFields(data: Partial<NewRoom>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...data };
   if ('images' in out)               out.images               = JSON.stringify(out.images ?? []);
   if ('facilities' in out)           out.facilities           = JSON.stringify(out.facilities ?? []);
   if ('equipment_highlights' in out) out.equipment_highlights = JSON.stringify(out.equipment_highlights ?? []);
+  if ('default_equipment' in out)    out.default_equipment    = JSON.stringify(out.default_equipment ?? []);
   return out;
 }
 
@@ -121,8 +136,9 @@ export async function createRoom(
     .prepare(
       `INSERT INTO rooms
          (name, type, base_price, notes,
-          cover_image, images, short_description, capacity, facilities, equipment_highlights)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          cover_image, images, short_description, capacity, facilities, equipment_highlights,
+          default_equipment)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       data.name,
@@ -135,6 +151,7 @@ export async function createRoom(
       data.capacity ?? null,
       JSON.stringify(data.facilities ?? []),
       JSON.stringify(data.equipment_highlights ?? []),
+      JSON.stringify(data.default_equipment ?? []),
     )
     .run();
   return result.meta.last_row_id as number;

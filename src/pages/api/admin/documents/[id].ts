@@ -42,7 +42,7 @@ export const GET: APIRoute = async (context) => {
   const contentType = object.httpMetadata?.contentType ?? EXT_TO_MIME[ext] ?? 'application/octet-stream';
   const filename = `${doc.label.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
 
-  return new Response(object.body as BodyInit, {
+  return new Response(object.body as unknown as BodyInit, {
     headers: {
       'Content-Type': contentType,
       'Content-Disposition': `inline; filename="${filename}"`,

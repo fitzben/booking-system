@@ -2,6 +2,11 @@ import type { BookingStatus, AdminRole } from "./constants";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
+export interface DefaultEquipmentItem {
+  name: string;
+  quantity: number;
+}
+
 export interface Room {
   id: number;
   name: string;
@@ -16,6 +21,8 @@ export interface Room {
   capacity?: string | null;
   facilities?: string[];
   equipment_highlights?: string[];
+  // Default equipment for booking Equipment Usage tab — requires migration 017
+  default_equipment?: DefaultEquipmentItem[];
 }
 
 export interface RoomPricingTier {
