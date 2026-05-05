@@ -95,7 +95,7 @@ export default function PublicLayout({
                     marginTop: 2,
                   }}
                 >
-                  Studio & Function Room Booking
+                  Studio & Event Space Booking
                 </div>
               </div>
             </Space>

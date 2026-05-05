@@ -13,11 +13,10 @@ export default function BookingSection() {
       <ConfigProvider theme={MD_THEME}>
         <section id="booking-form" className="booking-section">
           <div className="booking-section-inner">
-            {/* Header — hanya tampil saat belum submit */}
             {!submitted && (
               <div className="booking-header">
-                <div className="booking-eyebrow">Formulir Peminjaman</div>
-                <h2 className="booking-title">Ajukan Peminjaman</h2>
+                <div className="booking-eyebrow">Booking Form</div>
+                <h2 className="booking-title">Booking Now</h2>
                 <p className="booking-subtitle">
                   Isi formulir berikut untuk mengajukan peminjaman ruangan atau
                   studio kami. Tim kami akan menghubungi Anda untuk konfirmasi
