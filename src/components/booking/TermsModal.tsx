@@ -1,4 +1,5 @@
-import { Modal, Typography, Divider, Space, Button } from "antd";
+import { useRef, useState, useEffect } from "react";
+import { Modal, Typography, Divider, Space, Button, Tooltip } from "antd";
 import {
   CheckCircleOutlined,
   WarningOutlined,
@@ -6,6 +7,7 @@ import {
   ToolOutlined,
   DollarOutlined,
   StopOutlined,
+  DownOutlined,
 } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -89,11 +91,27 @@ const SECTIONS = [
   },
 ];
 
-export default function TermsModal({
-  open,
-  onClose,
-  onAgree,
-}: TermsModalProps) {
+export default function TermsModal({ open, onClose, onAgree }: TermsModalProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setHasScrolled(false);
+    setTimeout(() => {
+      const el = scrollRef.current;
+      if (el && el.scrollHeight <= el.clientHeight + 20) setHasScrolled(true);
+    }, 100);
+  }, [open]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
+      setHasScrolled(true);
+    }
+  }
+
   return (
     <Modal
       open={open}
@@ -119,111 +137,120 @@ export default function TermsModal({
         </Space>
       }
       footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+          {!hasScrolled && (
+            <Text type="secondary" style={{ fontSize: 12, marginRight: 4 }}>
+              <DownOutlined style={{ marginRight: 4 }} />
+              Scroll ke bawah untuk melanjutkan
+            </Text>
+          )}
           <Button onClick={onClose}>Tutup</Button>
-          <Button
-            type="primary"
-            icon={<CheckCircleOutlined />}
-            onClick={() => {
-              onAgree();
-              onClose();
-            }}
-            style={{
-              background: "#d97706",
-              borderColor: "#d97706",
-              fontWeight: 600,
-              color: "#fff",
-            }}
-          >
-            Saya Setuju & Tutup
-          </Button>
+          <Tooltip title={!hasScrolled ? "Scroll ke bawah hingga akhir terlebih dahulu" : undefined}>
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              disabled={!hasScrolled}
+              onClick={() => {
+                onAgree();
+                onClose();
+              }}
+              style={{
+                background: hasScrolled ? "#d97706" : undefined,
+                borderColor: hasScrolled ? "#d97706" : undefined,
+                fontWeight: 600,
+                color: hasScrolled ? "#fff" : undefined,
+              }}
+            >
+              Saya Setuju & Tutup
+            </Button>
+          </Tooltip>
         </div>
       }
       width="min(680px, calc(100vw - 32px))"
-      styles={{
-        body: {
-          maxHeight: "60vh",
-          overflowY: "auto",
-          padding: "16px 24px",
-        },
-      }}
+      styles={{ body: { padding: 0 } }}
     >
-      {/* Intro */}
       <div
-        style={{
-          background: "#fffbf0",
-          border: "1px solid #fde68a",
-          borderRadius: 10,
-          padding: "12px 16px",
-          marginBottom: 20,
-        }}
+        ref={scrollRef}
+        onScroll={handleScroll}
+        style={{ maxHeight: "60vh", overflowY: "auto", padding: "16px 24px" }}
       >
-        <Text style={{ fontSize: 13, color: "#92400e" }}>
-          Dengan menyetujui ini, pengguna menyatakan telah membaca, memahami,
-          dan bersedia bertanggung jawab penuh atas aktivitas, penggunaan
-          fasilitas, dan segala risiko yang timbul selama penggunaan studio.
-        </Text>
-      </div>
+        {/* Intro */}
+        <div
+          style={{
+            background: "#fffbf0",
+            border: "1px solid #fde68a",
+            borderRadius: 10,
+            padding: "12px 16px",
+            marginBottom: 20,
+          }}
+        >
+          <Text style={{ fontSize: 13, color: "#92400e" }}>
+            Dengan menyetujui ini, pengguna menyatakan telah membaca, memahami,
+            dan bersedia bertanggung jawab penuh atas aktivitas, penggunaan
+            fasilitas, dan segala risiko yang timbul selama penggunaan studio.
+          </Text>
+        </div>
 
-      {/* Sections */}
-      <Space direction="vertical" size={0} style={{ width: "100%" }}>
-        {SECTIONS.map((section, i) => (
-          <div key={i}>
-            {i > 0 && <Divider style={{ margin: "12px 0" }} />}
-            <Space align="start" style={{ width: "100%" }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  flexShrink: 0,
-                  marginTop: 1,
-                  background: `${section.color}15`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: section.color,
-                  fontSize: 14,
-                }}
-              >
-                {section.icon}
-              </div>
-              <div style={{ flex: 1 }}>
-                <Text
-                  strong
-                  style={{ fontSize: 13, display: "block", marginBottom: 6 }}
+        {/* Sections */}
+        <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
+          {SECTIONS.map((section, i) => (
+            <div key={i}>
+              {i > 0 && <Divider style={{ margin: "12px 0" }} />}
+              <Space align="start" style={{ width: "100%" }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    marginTop: 1,
+                    background: `${section.color}15`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: section.color,
+                    fontSize: 14,
+                  }}
                 >
-                  {section.title}
-                </Text>
-                <ul style={{ margin: 0, paddingLeft: 16 }}>
-                  {section.points.map((point, j) => (
-                    <li key={j}>
-                      <Text style={{ fontSize: 13, color: "#374151" }}>
-                        {point}
-                      </Text>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Space>
-          </div>
-        ))}
-      </Space>
+                  {section.icon}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Text
+                    strong
+                    style={{ fontSize: 13, display: "block", marginBottom: 6 }}
+                  >
+                    {section.title}
+                  </Text>
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {section.points.map((point, j) => (
+                      <li key={j}>
+                        <Text style={{ fontSize: 13, color: "#374151" }}>
+                          {point}
+                        </Text>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Space>
+            </div>
+          ))}
+        </div>
 
-      {/* Footer note */}
-      <div
-        style={{
-          background: "#f9fafb",
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          padding: "10px 14px",
-          marginTop: 20,
-        }}
-      >
-        <Text type="secondary" style={{ fontSize: 12, fontStyle: "italic" }}>
-          Seluruh Syarat dan Ketentuan secara lengkap tercantum dalam SOP yang
-          berlaku.
-        </Text>
+        {/* Footer note */}
+        <div
+          style={{
+            background: "#f9fafb",
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginTop: 20,
+          }}
+        >
+          <Text type="secondary" style={{ fontSize: 12, fontStyle: "italic" }}>
+            Seluruh Syarat dan Ketentuan secara lengkap tercantum dalam SOP yang
+            berlaku.
+          </Text>
+        </div>
       </div>
     </Modal>
   );

@@ -110,7 +110,7 @@ export default function LandingHero({
             <p className="hero-logo-text">MD Entertainment</p>
 
             <h1 className="hero-h1">
-              Studio &amp; <em>Function Room</em>
+              Studio &amp; <em>Event Space</em>
               <br />
               Booking
             </h1>

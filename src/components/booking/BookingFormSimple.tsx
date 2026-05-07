@@ -977,20 +977,19 @@ export default function BookingFormSimple({
               ]}
               style={{ marginBottom: 12 }}
             >
-              <Checkbox>
+              <Checkbox
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    form.setFieldValue("agree_sop", false);
+                    setSopOpen(true);
+                  }
+                }}
+              >
                 <Text style={{ fontSize: 13 }}>
                   Saya telah membaca dan memahami{" "}
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setSopOpen(true);
-                    }}
-                    className="sop-link"
-                    style={{ textDecoration: "underline" }}
-                  >
+                  <span style={{ textDecoration: "underline", color: "#1677ff" }}>
                     Standard Operating Procedure (SOP)
-                  </a>
+                  </span>
                 </Text>
               </Checkbox>
             </Form.Item>
@@ -1011,20 +1010,19 @@ export default function BookingFormSimple({
               ]}
               style={{ marginBottom: 16 }}
             >
-              <Checkbox>
+              <Checkbox
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    form.setFieldValue("agree_tos", false);
+                    setTosOpen(true);
+                  }
+                }}
+              >
                 <Text style={{ fontSize: 13 }}>
                   Saya telah membaca dan menyetujui{" "}
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setTosOpen(true);
-                    }}
-                    className="tos-link"
-                    style={{ textDecoration: "underline" }}
-                  >
+                  <span style={{ textDecoration: "underline", color: "#1677ff" }}>
                     Syarat dan Ketentuan
-                  </a>{" "}
+                  </span>{" "}
                   peminjaman ruangan
                 </Text>
               </Checkbox>
