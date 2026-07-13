@@ -1337,6 +1337,7 @@ function AdminBookingListContent() {
       >
         <BookingFormSimple
           hideHeader={true}
+          isAdmin={true}
           onSuccess={() => {
             setTimeout(() => {
               setCreateOpen(false);

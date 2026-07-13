@@ -198,9 +198,9 @@ async function handleSimpleBooking(
     .prepare(
       `SELECT COUNT(*) AS cnt FROM bookings
        WHERE room_id = ? AND status NOT IN ('rejected', 'cancelled')
-       AND (
-           date <= ? AND COALESCE(json_extract(details, '$.end_date'), date) >= ?
-       )
+        AND (
+            date <= ? AND COALESCE(json_extract(details, '$.end_date'), json_extract(details, '$.date_end'), date) >= ?
+        )
        AND (
            start_time < ? AND end_time > ?
        )`

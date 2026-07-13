@@ -542,6 +542,7 @@ export default function AdminBookingDetail({
         room_id: values.room_id,
         details_patch: {
           date_end: dateEnd,
+          end_date: dateEnd,
           fasilitas: values.fasilitas ?? [],
           ruangan: [],
         },

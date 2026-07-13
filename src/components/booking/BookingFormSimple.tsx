@@ -85,12 +85,14 @@ interface BookingFormSimpleProps {
   onSuccess?: () => void;
   hideHeader?: boolean;
   onSubmittedChange?: (submitted: boolean) => void;
+  isAdmin?: boolean;
 }
 
 export default function BookingFormSimple({
   onSuccess,
   hideHeader = false,
   onSubmittedChange,
+  isAdmin = false,
 }: BookingFormSimpleProps) {
   const [form] = Form.useForm();
 
@@ -345,6 +347,7 @@ export default function BookingFormSimple({
   // ── Disabled dates ────────────────────────────────────────────────────────
 
   function disabledDate(current: Dayjs): boolean {
+    if (isAdmin) return false;
     return current.isBefore(dayjs().startOf("day"));
   }
 

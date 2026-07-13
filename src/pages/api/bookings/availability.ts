@@ -35,7 +35,7 @@ export const GET: APIRoute = async (context) => {
         `SELECT COUNT(*) AS cnt FROM bookings
          WHERE room_id = ? AND status NOT IN ('rejected', 'cancelled')
          AND (
-             date <= ? AND COALESCE(json_extract(details, '$.end_date'), date) >= ?
+             date <= ? AND COALESCE(json_extract(details, '$.end_date'), json_extract(details, '$.date_end'), date) >= ?
          )
          AND (
              start_time < ? AND end_time > ?
@@ -58,7 +58,7 @@ export const GET: APIRoute = async (context) => {
     .prepare(
       `SELECT start_time, end_time FROM bookings
        WHERE room_id = ? AND status NOT IN ('rejected', 'cancelled')
-       AND date <= ? AND COALESCE(json_extract(details, '$.end_date'), date) >= ?
+       AND date <= ? AND COALESCE(json_extract(details, '$.end_date'), json_extract(details, '$.date_end'), date) >= ?
        ORDER BY start_time ASC`
     )
     .bind(roomId, endDate, startDate)
